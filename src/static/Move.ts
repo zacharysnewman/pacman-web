@@ -51,14 +51,23 @@ export class Move {
         const canMoveUp    = topObj   !== undefined && (topObj   > 2 || (topObj   <= 0 && obj.gridY() - (obj.roundedY() - 1) > minDistance));
         const canMoveDown  = bottomObj !== undefined && (bottomObj > 2 || (bottomObj <= 0 && (obj.roundedY() + 1) - obj.gridY() > minDistance));
 
+        const step = speed * Time.scaledDeltaTime * Draw.normalizedUnit();
         if (obj.moveDir === 'left' && canMoveLeft) {
-            obj.x -= speed * Time.scaledDeltaTime * Draw.normalizedUnit();
+            const centerX = obj.roundedAbsoluteX();
+            obj.x -= step;
+            if (leftObj !== undefined && leftObj <= 2) obj.x = Math.max(obj.x, centerX);
         } else if (obj.moveDir === 'right' && canMoveRight) {
-            obj.x += speed * Time.scaledDeltaTime * Draw.normalizedUnit();
+            const centerX = obj.roundedAbsoluteX();
+            obj.x += step;
+            if (rightObj !== undefined && rightObj <= 2) obj.x = Math.min(obj.x, centerX);
         } else if (obj.moveDir === 'up' && canMoveUp) {
-            obj.y -= speed * Time.scaledDeltaTime * Draw.normalizedUnit();
+            const centerY = obj.roundedAbsoluteY();
+            obj.y -= step;
+            if (topObj !== undefined && topObj <= 2) obj.y = Math.max(obj.y, centerY);
         } else if (obj.moveDir === 'down' && canMoveDown) {
-            obj.y += speed * Time.scaledDeltaTime * Draw.normalizedUnit();
+            const centerY = obj.roundedAbsoluteY();
+            obj.y += step;
+            if (bottomObj !== undefined && bottomObj <= 2) obj.y = Math.min(obj.y, centerY);
         }
     }
 }
