@@ -2,7 +2,7 @@ import { unit } from '../constants';
 import { Levels } from '../static/Levels';
 import type { Direction, IGameObject, TileValue } from '../types';
 
-type DrawFn        = (color: string, x: number, y: number, scale: number) => void;
+type DrawFn        = (obj: IGameObject) => void;
 type TileCallbackFn = (x: number, y: number) => void;
 
 export class GameObject implements IGameObject {
@@ -20,8 +20,6 @@ export class GameObject implements IGameObject {
 
     private lastTileX: number;
     private lastTileY: number;
-    private lastPosX: number;
-    private lastPosY: number;
     private checkingForCenter: boolean;
 
     constructor(
@@ -45,8 +43,6 @@ export class GameObject implements IGameObject {
 
         this.lastTileX = this.roundedX();
         this.lastTileY = this.roundedY();
-        this.lastPosX  = this.gridX();
-        this.lastPosY  = this.gridY();
         this.checkingForCenter = false;
 
         this.moveSpeed = 1.0;
@@ -56,7 +52,7 @@ export class GameObject implements IGameObject {
     update(): void {
         this.checkTileUpdates();
         this.moveFunction();
-        this.drawFunction(this.color, this.x, this.y, this.scale);
+        this.drawFunction(this);
     }
 
     roundedX(): number { return Math.round(this.gridX()); }
@@ -101,7 +97,5 @@ export class GameObject implements IGameObject {
 
         this.lastTileX = this.roundedX();
         this.lastTileY = this.roundedY();
-        this.lastPosX  = this.gridX();
-        this.lastPosY  = this.gridY();
     }
 }

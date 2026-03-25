@@ -34,9 +34,9 @@ export class Move {
         Move.moveObject(gameState.pinky);
     }
 
-    static sue(): void {
+    static clyde(): void {
         if (gameState.frozen) return;
-        Move.moveObject(gameState.sue);
+        Move.moveObject(gameState.clyde);
     }
 
     static moveObject(obj: IGameObject): void {

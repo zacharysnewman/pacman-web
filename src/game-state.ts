@@ -7,7 +7,7 @@ export const gameState = {
     blinky: null as unknown as IGameObject,
     inky: null as unknown as IGameObject,
     pinky: null as unknown as IGameObject,
-    sue: null as unknown as IGameObject,
+    clyde: null as unknown as IGameObject,
     gameObjects: [] as IGameObject[],
     ghosts: [] as IGameObject[],
     frozen: false,

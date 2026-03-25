@@ -1,4 +1,5 @@
-import { unit, baseUnit, gridW, gridH } from '../constants';
+import { unit, gridW, gridH } from '../constants';
+import type { IGameObject } from '../types';
 import { gameState } from '../game-state';
 import { Levels } from './Levels';
 import { Stats } from './Stats';
@@ -22,7 +23,7 @@ export class Draw {
     static pacmanAnim = 0;
 
     static normalizedUnit(): number {
-        return unit / baseUnit;
+        return 1;
     }
 
     static rect(color: string, x: number, y: number, w: number, h: number): void {
@@ -52,14 +53,15 @@ export class Draw {
         ctx.stroke();
     }
 
-    static pacman(color: string, x: number, y: number, scale: number): void {
+    static pacman(obj: IGameObject): void {
+        const { color, x, y, scale } = obj;
         const ctx = gameState.ctx;
         const frames = [0.0, 0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.1];
         const frameChangePerSecond = 30;
         const size = scale * unit;
 
         let dirMultiplier = 1;
-        switch (gameState.pacman.moveDir) {
+        switch (obj.moveDir) {
             case 'left':  dirMultiplier = 1;   break;
             case 'right': dirMultiplier = 0;   break;
             case 'up':    dirMultiplier = 1.5; break;
@@ -93,17 +95,15 @@ export class Draw {
         return level >= 19 ? 0 : (FRIGHTENED_FLASH_COUNT[level] ?? 0);
     }
 
-    static ghost(color: string, x: number, y: number, scale: number): void {
-        // Find this ghost by position to determine its mode
-        const ghost = gameState.ghosts?.find(g => Math.abs(g.x - x) < 1 && Math.abs(g.y - y) < 1);
-        const mode = ghost?.ghostMode;
+    static ghost(obj: IGameObject): void {
+        const { color, x, y, scale, ghostMode } = obj;
 
-        if (mode === 'eyes') {
+        if (ghostMode === 'eyes') {
             Draw.drawGhostEyes(color, x, y, scale);
             return;
         }
 
-        if (mode === 'frightened') {
+        if (ghostMode === 'frightened') {
             const flashCount = Draw.getFrightenedFlashCount(gameState.level);
             const flashDuration = flashCount * 14 / 60;
             const timeLeft = gameState.frightenedEnd - Time.timeSinceStart;

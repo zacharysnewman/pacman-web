@@ -16,8 +16,13 @@ const START = {
     blinky: { x: 13.5, y: 14 },
     inky:   { x: 12,   y: 17 },
     pinky:  { x: 13.5, y: 17 },
-    sue:    { x: 15,   y: 17 },
+    clyde:  { x: 15,   y: 17 },
 };
+
+// Ghost movement speeds — Phase 6 will replace these with a full speed table
+const SPEED_NORMAL     = 1.0;
+const SPEED_FRIGHTENED = 0.5;
+const SPEED_EYES       = 1.5;
 
 function tileToPixel(tileX: number, tileY: number): { x: number; y: number } {
     return { x: tileX * unit + unit / 2, y: tileY * unit + unit / 2 };
@@ -92,7 +97,7 @@ function activateFrightened(): void {
         if (ghost.ghostMode !== 'eyes') {
             ghost.ghostMode = 'frightened';
             ghost.moveDir = oppositeDir(ghost.moveDir);
-            ghost.moveSpeed = 0.5;
+            ghost.moveSpeed = SPEED_FRIGHTENED;
         }
     }
 }
@@ -106,7 +111,7 @@ function updateFrightenedMode(): void {
     for (const ghost of gameState.ghosts) {
         if (ghost.ghostMode === 'frightened') {
             ghost.ghostMode = globalMode;
-            ghost.moveSpeed = 1.0;
+            ghost.moveSpeed = SPEED_NORMAL;
         }
     }
 }
@@ -131,7 +136,7 @@ function eatGhost(ghost: IGameObject): void {
 
     // Ghost becomes eyes and speeds home
     ghost.ghostMode = 'eyes';
-    ghost.moveSpeed = 1.5;
+    ghost.moveSpeed = SPEED_EYES;
 }
 
 // ── Game Object Callbacks ─────────────────────────────────────────────────────
@@ -142,7 +147,7 @@ function makeGhostTileCentered(getGhost: () => IGameObject): (_x: number, _y: nu
         // Eyes arrive at ghost house entrance — revive
         if (ghost.ghostMode === 'eyes' && ghost.roundedX() === 13 && ghost.roundedY() === 14) {
             ghost.ghostMode = AI.getCurrentGlobalMode();
-            ghost.moveSpeed = 1.0;
+            ghost.moveSpeed = SPEED_NORMAL;
             return;
         }
         AI.ghostTileCenter(ghost);
@@ -157,7 +162,7 @@ function resetPositions(): void {
         { key: 'blinky', dir: 'left' },
         { key: 'inky',   dir: 'left' },
         { key: 'pinky',  dir: 'left' },
-        { key: 'sue',    dir: 'left' },
+        { key: 'clyde',  dir: 'left' },
     ];
     for (const { key, dir } of actors) {
         const obj = gameState[key];
@@ -165,7 +170,7 @@ function resetPositions(): void {
         obj.x = pos.x;
         obj.y = pos.y;
         obj.moveDir = dir;
-        obj.moveSpeed = 1.0;
+        obj.moveSpeed = SPEED_NORMAL;
         if (key !== 'pacman') {
             obj.ghostMode = 'scatter';
         }
@@ -270,10 +275,10 @@ function initializeLevel(): void {
     gameState.blinky = new GameObject('red',     START.blinky.x, START.blinky.y, 0.667, Move.blinky, Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.blinky));
     gameState.inky   = new GameObject('cyan',    START.inky.x,   START.inky.y,   0.667, Move.inky,   Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.inky));
     gameState.pinky  = new GameObject('hotpink', START.pinky.x,  START.pinky.y,  0.667, Move.pinky,  Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.pinky));
-    gameState.sue    = new GameObject('orange',  START.sue.x,    START.sue.y,    0.667, Move.sue,    Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.sue));
+    gameState.clyde  = new GameObject('orange',  START.clyde.x,  START.clyde.y,  0.667, Move.clyde,  Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.clyde));
 
-    gameState.gameObjects = [gameState.pacman, gameState.blinky, gameState.inky, gameState.pinky, gameState.sue];
-    gameState.ghosts      = [gameState.blinky, gameState.inky, gameState.pinky, gameState.sue];
+    gameState.gameObjects = [gameState.pacman, gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
+    gameState.ghosts      = [gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
 
     // All ghosts start in scatter mode
     for (const ghost of gameState.ghosts) {

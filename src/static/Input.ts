@@ -11,20 +11,20 @@ export class Input {
     static readonly BUFFER_FRAMES = 8;
 
     static checkKeyDown(e: KeyboardEvent): void {
-        switch (e.keyCode) {
-            case 37: Input.leftPressed = true; break;
-            case 38: Input.upPressed = true; break;
-            case 39: Input.rightPressed = true; break;
-            case 40: Input.downPressed = true; break;
+        switch (e.key) {
+            case 'ArrowLeft':  Input.leftPressed = true;  break;
+            case 'ArrowUp':    Input.upPressed = true;    break;
+            case 'ArrowRight': Input.rightPressed = true; break;
+            case 'ArrowDown':  Input.downPressed = true;  break;
         }
     }
 
     static checkKeyUp(e: KeyboardEvent): void {
-        switch (e.keyCode) {
-            case 37: Input.leftPressed = false; break;
-            case 38: Input.upPressed = false; break;
-            case 39: Input.rightPressed = false; break;
-            case 40: Input.downPressed = false; break;
+        switch (e.key) {
+            case 'ArrowLeft':  Input.leftPressed = false;  break;
+            case 'ArrowUp':    Input.upPressed = false;    break;
+            case 'ArrowRight': Input.rightPressed = false; break;
+            case 'ArrowDown':  Input.downPressed = false;  break;
         }
     }
 
