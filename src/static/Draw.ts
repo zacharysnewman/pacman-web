@@ -397,16 +397,20 @@ export class Draw {
         const ctx = gameState.ctx;
         const cx = gameState.canvas.width / 2;
         const cy = gameState.canvas.height / 2;
-        const fontSize = Math.round(unit * 1.2);
 
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(0, 0, gameState.canvas.width, gameState.canvas.height);
 
-        ctx.font = `bold ${fontSize}px monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+
+        ctx.font = `bold ${Math.round(unit * 1.4)}px monospace`;
         ctx.fillStyle = 'red';
-        ctx.fillText('GAME OVER', cx, cy);
+        ctx.fillText('GAME OVER', cx, cy - unit);
+
+        ctx.font = `bold ${Math.round(unit * 0.85)}px monospace`;
+        ctx.fillStyle = 'white';
+        ctx.fillText(`SCORE  ${Stats.currentScore}`, cx, cy + unit * 1.2);
     }
 
     static scorePopups(): void {
