@@ -18,7 +18,7 @@ export const gameState = {
     scatterChaseIndex: 0,
     scatterChaseElapsed: 0,
     // Frightened mode state (Phase 4)
-    frightenedEnd: 0,
+    frightenedRemaining: 0,
     ghostEatenChain: 0,
     scorePopups: [] as Array<{ x: number; y: number; score: number; endTime: number }>,
     // Ghost house state (Phase 3)

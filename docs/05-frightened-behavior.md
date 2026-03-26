@@ -74,7 +74,8 @@ The PRNG is **reset with the same initial seed** at the start of each new level 
 - The ghost is **revived** and exits to chase again
 - Score is awarded: 200 → 400 → 800 → 1,600 (chain resets with each new energizer)
 - A brief **score display** appears at the capture location for ~1 second
-- Pac-Man is **frozen** for the duration of the score display
+- **All actors** (Pac-Man and all non-eyes ghosts) are **frozen** for the duration of the score display
+- The frightened countdown **pauses** during this freeze so ghost-eating time is not consumed
 
 ---
 

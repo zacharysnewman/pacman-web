@@ -160,6 +160,17 @@ function getFrightenedDuration(level: number): number {
     return Draw.getFrightenedDuration(level);
 }
 
+// Returns true if ghost can physically move in dir from its current rounded tile
+function canGhostMoveDir(ghost: IGameObject, dir: Direction): boolean {
+    const onTunnelRow = ghost.roundedY() === TUNNEL_ROW;
+    switch (dir) {
+        case 'left':  return (ghost.leftObject()   ?? 0) > 2 || (onTunnelRow && ghost.leftObject()  === undefined);
+        case 'right': return (ghost.rightObject()  ?? 0) > 2 || (onTunnelRow && ghost.rightObject() === undefined);
+        case 'up':    return (ghost.topObject()    ?? 0) > 2;
+        case 'down':  return (ghost.bottomObject() ?? 0) > 2;
+    }
+}
+
 // ── Scatter/Chase Timer ───────────────────────────────────────────────────────
 
 function resetScatterChaseTimer(): void {
@@ -197,13 +208,19 @@ function updateScatterChaseMode(dt: number): void {
             } else if (ghost.ghostMode !== 'frightened' && ghost.ghostMode !== 'eyes' &&
                        ghost.ghostMode !== 'exiting') {
                 ghost.ghostMode = newMode;
-                ghost.moveDir = oppositeDir(ghost.moveDir);
+                reverseGhost(ghost);
             }
         }
     }
 }
 
 // ── Frightened Mode ───────────────────────────────────────────────────────────
+
+// Reverse a ghost's direction; if the reversed direction is into a wall, keep current
+function reverseGhost(ghost: IGameObject): void {
+    const rev = oppositeDir(ghost.moveDir);
+    if (canGhostMoveDir(ghost, rev)) ghost.moveDir = rev;
+}
 
 function activateFrightened(): void {
     const duration = getFrightenedDuration(gameState.level);
@@ -214,28 +231,34 @@ function activateFrightened(): void {
         for (const ghost of gameState.ghosts) {
             if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
                 ghost.ghostMode !== 'exiting') {
-                ghost.moveDir = oppositeDir(ghost.moveDir);
+                reverseGhost(ghost);
             }
         }
         return;
     }
 
-    gameState.frightenedEnd = Time.timeSinceStart + duration;
+    // Reset countdown (use game-time delta so pauses don't eat into it)
+    gameState.frightenedRemaining = duration;
     for (const ghost of gameState.ghosts) {
         if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
             ghost.ghostMode !== 'exiting') {
             ghost.ghostMode = 'frightened';
-            ghost.moveDir = oppositeDir(ghost.moveDir);
+            reverseGhost(ghost);
             ghost.moveSpeed = getGhostFrightSpeed(gameState.level);
         }
     }
 }
 
-function updateFrightenedMode(): void {
-    if (gameState.frightenedEnd <= 0) return;
-    if (Time.timeSinceStart < gameState.frightenedEnd) return;
+function updateFrightenedMode(dt: number): void {
+    if (gameState.frightenedRemaining <= 0) return;
+    // Pause the countdown during ghost-eating freeze so those pauses don't
+    // consume vulnerability time (matches original arcade behavior)
+    if (!gameState.pacmanFrozen) {
+        gameState.frightenedRemaining -= dt;
+    }
+    if (gameState.frightenedRemaining > 0) return;
 
-    gameState.frightenedEnd = 0;
+    gameState.frightenedRemaining = 0;
     const globalMode = AI.getCurrentGlobalMode();
     for (const ghost of gameState.ghosts) {
         if (ghost.ghostMode === 'frightened') {
@@ -416,7 +439,7 @@ function resetPositions(afterDeath = false): void {
     gameState.modeChangesInHouse = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
     gameState.idleTimer = 0;
 
-    gameState.frightenedEnd = 0;
+    gameState.frightenedRemaining = 0;
     gameState.ghostEatenChain = 0;
     gameState.scorePopups = [];
     gameState.pacmanFrozen = false;
@@ -549,7 +572,7 @@ function update(): void {
     if (!gameState.frozen && !gameState.gameOver) {
         Input.update();
         updateScatterChaseMode(Time.deltaTime);
-        updateFrightenedMode();
+        updateFrightenedMode(Time.deltaTime);
         updateGhostTunnelSpeeds();
         updateIdleTimer(Time.deltaTime);
         updateFruit();
