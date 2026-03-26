@@ -1,5 +1,6 @@
 import { gameState } from '../game-state';
 import { getDistance } from '../utils';
+import { RED_ZONE, TUNNEL_ROW } from '../constants';
 import type { IGameObject, Direction } from '../types';
 
 interface TurnOption {
@@ -10,7 +11,6 @@ interface TurnOption {
 
 // Red-zone T-intersections: ghosts in scatter/chase cannot turn upward here.
 // Two pairs of intersections flank the ghost house (rows 14 and 26, cols 6 and 21).
-const RED_ZONE = new Set(['6,14', '21,14', '6,26', '21,26']);
 
 // Scatter corner targets by ghost color
 const SCATTER_TARGETS: Record<string, { x: number; y: number }> = {
@@ -126,7 +126,6 @@ export class AI {
         if (gameState.debugEnabled) gameState.debugGhostTargets[obj.color] = { x: targetX, y: targetY };
 
         // Treat undefined (off-grid) as passable on the tunnel row so ghosts can wrap
-        const TUNNEL_ROW = 17;
         const onTunnelRow = myY === TUNNEL_ROW;
         const inRedZone = (mode === 'scatter' || mode === 'chase') && RED_ZONE.has(`${myX},${myY}`);
         const canMoveLeft  = ((obj.leftObject()  ?? 0) > 2 || (onTunnelRow && obj.leftObject()  === undefined)) && obj.moveDir !== 'right';
@@ -174,7 +173,6 @@ export class AI {
     // PRNG-based random direction selection for frightened ghosts
     static ghostFrightenedMove(obj: IGameObject): void {
         const allDirs: Direction[] = ['up', 'left', 'down', 'right'];
-        const TUNNEL_ROW = 17;
         const onTunnelRow = obj.roundedY() === TUNNEL_ROW;
         const canMove: Record<Direction, boolean> = {
             left:  ((obj.leftObject()  ?? 0) > 2 || (onTunnelRow && obj.leftObject()  === undefined)) && obj.moveDir !== 'right',

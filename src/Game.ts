@@ -1,4 +1,4 @@
-import { unit } from './constants';
+import { unit, TUNNEL_ROW, TUNNEL_SLOW_COL_MAX, TUNNEL_SLOW_COL_MIN } from './constants';
 import { gameState } from './game-state';
 import { Time }  from './static/Time';
 import { Input } from './static/Input';
@@ -158,13 +158,10 @@ function getCurrentPacmanSpeed(): number {
         : getPacmanNormalSpeed(gameState.level);
 }
 
-// Tunnel zone: row 17, columns 0–5 (left) and 22–27 (right)
-const TUNNEL_ROW = 17;
-
 function isGhostInTunnel(ghost: IGameObject): boolean {
     if (ghost.roundedY() !== TUNNEL_ROW) return false;
     const col = ghost.roundedX();
-    return col <= 5 || col >= 22;
+    return col <= TUNNEL_SLOW_COL_MAX || col >= TUNNEL_SLOW_COL_MIN;
 }
 
 // Apply correct speed to all active ghosts based on their current mode and position
