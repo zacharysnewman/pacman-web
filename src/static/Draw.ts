@@ -1,4 +1,4 @@
-import { unit, gridW, gridH } from '../constants';
+import { unit, gridW, gridH, RED_ZONE_TILES } from '../constants';
 import type { IGameObject, Direction } from '../types';
 import { gameState } from '../game-state';
 import { Levels } from './Levels';
@@ -490,7 +490,7 @@ export class Draw {
     private static debugRedZones(ctx: CanvasRenderingContext2D): void {
         // The 4 T-junctions where ghosts cannot turn upward in scatter/chase mode.
         // Green = restriction lifted (frightened), Red = upward blocked (scatter/chase).
-        const RED_ZONES = [{ x: 12, y: 13 }, { x: 15, y: 13 }, { x: 12, y: 25 }, { x: 15, y: 25 }];
+        const RED_ZONES = RED_ZONE_TILES;
         const blocked = gameState.frightenedRemaining <= 0;
         const color   = blocked ? 'red' : '#00e676';
 

@@ -1,5 +1,6 @@
 import { gameState } from '../game-state';
 import { getDistance } from '../utils';
+import { RED_ZONE } from '../constants';
 import type { IGameObject, Direction } from '../types';
 
 interface TurnOption {
@@ -10,7 +11,6 @@ interface TurnOption {
 
 // Red-zone T-intersections: ghosts in scatter/chase cannot turn upward here.
 // Two pairs of intersections flank the ghost house (rows 14 and 26, cols 6 and 21).
-const RED_ZONE = new Set(['12,13', '15,13', '12,25', '15,25']);
 
 // Scatter corner targets by ghost color
 const SCATTER_TARGETS: Record<string, { x: number; y: number }> = {
