@@ -12,10 +12,26 @@ export class Input {
 
     static checkKeyDown(e: KeyboardEvent): void {
         switch (e.key) {
-            case 'ArrowLeft':  Input.leftPressed = true;  break;
-            case 'ArrowUp':    Input.upPressed = true;    break;
-            case 'ArrowRight': Input.rightPressed = true; break;
-            case 'ArrowDown':  Input.downPressed = true;  break;
+            case 'ArrowLeft':
+                Input.leftPressed = true;
+                Input.bufferedDir = 'left';
+                Input.bufferedDirFramesLeft = Input.BUFFER_FRAMES;
+                break;
+            case 'ArrowUp':
+                Input.upPressed = true;
+                Input.bufferedDir = 'up';
+                Input.bufferedDirFramesLeft = Input.BUFFER_FRAMES;
+                break;
+            case 'ArrowRight':
+                Input.rightPressed = true;
+                Input.bufferedDir = 'right';
+                Input.bufferedDirFramesLeft = Input.BUFFER_FRAMES;
+                break;
+            case 'ArrowDown':
+                Input.downPressed = true;
+                Input.bufferedDir = 'down';
+                Input.bufferedDirFramesLeft = Input.BUFFER_FRAMES;
+                break;
         }
     }
 

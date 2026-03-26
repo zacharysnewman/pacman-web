@@ -45,8 +45,8 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Direction facing in animation | ✅ | `dirMultiplier` rotates arc |
 | Level-based speed (80% / 90% / 100%) | ✅ | `getPacmanNormalSpeed()` in `Game.ts` — 80% L1, 90% L2–4, 100% L5–20, 90% L21+ |
 | Frightened speed boost | ✅ | `getPacmanFrightSpeed()` — 90% L1, 95% L2–4, 100% L5–20; restored via `getCurrentPacmanSpeed()` |
-| Cornering (pre-turn / post-turn) | ❌ | Direction only changes when tile ahead is clear |
-| Input buffering for turns | ⚠️ | Touch: 8-frame retry buffer (`Input.BUFFER_FRAMES`); keyboard: held key retries every frame; no pre/post-turn pixel window yet |
+| Cornering (pre-turn / post-turn) | ⚠️ | Rounding provides ~±0.5 tile window (slightly more generous than spec's 3–4 px); diagonal lerp handles alignment |
+| Input buffering for turns | ✅ | Both keyboard (keydown → bufferedDir) and touch use same 8-frame retry buffer (`Input.BUFFER_FRAMES`) |
 
 ---
 
@@ -65,8 +65,8 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Level-based ghost speed | ✅ | `getGhostNormalSpeed()` — 75% L1, 85% L2–4, 95% L5+; managed by `updateGhostTunnelSpeeds()` |
 | Tunnel teleport for ghosts | ✅ | AI tunnel passability fix in `AI.ts` — ghosts can now enter/traverse the side tunnel and wrap |
 | Tunnel speed penalty | ✅ | `getGhostTunnelSpeed()` — 40% L1, 45% L2–4, 50% L5+; applied by `updateGhostTunnelSpeeds()` |
-| Red zone upward restriction | ❌ | No intersection-specific rules |
-| Ghost eye direction tracking movement | ❌ | Pupils are static |
+| Red zone upward restriction | ✅ | `RED_ZONE` set in `AI.ts`; `canMoveUp` blocked at (6,14), (21,14), (6,26), (21,26) in scatter/chase |
+| Ghost eye direction tracking movement | ✅ | `drawGhostEyes()` takes `dir` param; pupils offset toward movement direction |
 | Frightened appearance (blue body) | ✅ | `Draw.ghost()` — dark blue `#0000cc` in frightened mode |
 | Frightened flash warning | ✅ | `Draw.ghost()` — alternates blue/white every 7 frames in flash window |
 | Ghost collision with Pac-Man → life lost | ✅ | `checkCollisions()` in `Game.ts` — skips frightened and eyes ghosts |
@@ -150,7 +150,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | All ghosts freeze on ghost eat | ✅ | Each ghost move fn checks `pacmanFrozen && ghostMode !== 'eyes'`; eyes continue home |
 | Ghost eyes return home | ✅ | Eyes mode at 1.5× speed, targeting (13,14) |
 | Per-level duration table | ✅ | `FRIGHTENED_DURATION` / `FRIGHTENED_FLASH_COUNT` in `Draw.ts` |
-| Red zone ignored in frightened | ❌ | Red zones not implemented |
+| Red zone ignored in frightened | ✅ | Red zone check in `AI.ts` is gated to `mode === 'scatter' \|\| mode === 'chase'`; frightened path is separate |
 
 ---
 
@@ -182,7 +182,7 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Fruit / level history display | ✅ | `Draw.fruitCounter()` — last 7 symbols, right-aligned at bottom |
 | Fruit sprite on screen | ✅ | `Draw.fruit()` — emoji rendered at fruit spawn position |
 | Ghost score display on eat | ✅ | `Draw.scorePopups()` — cyan score shown at capture location for 1 s |
-| Ready! text | ❌ | |
+| Ready! text | ✅ | `Draw.readyText()` shown while `gameState.showReady`; 2 s pause at game start, 1.5 s after death/level clear |
 | Game Over text | ✅ | `Draw.gameOverScreen()` — red overlay text |
 
 ---
@@ -191,7 +191,11 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 
 | Feature | Status | Notes |
 |---|---|---|
-| Any sound | ❌ | No audio implementation exists |
+| Dot eating sound | ✅ | Alternating two-tone waka-waka via Web Audio API (`Sound.dot()`) |
+| Energizer sound | ✅ | Two-note chord (`Sound.energizer()`) |
+| Ghost eaten sound | ✅ | Ascending arpeggio (`Sound.ghostEaten()`) |
+| Death sound | ✅ | Descending melody (`Sound.death()`) |
+| Level clear sound | ✅ | Ascending jingle (`Sound.levelClear()`) |
 
 ---
 
@@ -200,17 +204,17 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Category | Implemented | Total | % Done |
 |---|---|---|---|
 | Core engine | 10 | 10 | 100% |
-| Pac-Man | 11 | 12 | 92% |
-| Ghosts (shared) | 13 | 16 | 81% |
+| Pac-Man | 12 | 12 | 100% |
+| Ghosts (shared) | 16 | 16 | 100% |
 | Ghost AI — modes | 7 | 7 | 100% |
 | Ghost AI — targeting | 8 | 8 | 100% |
 | Ghost house & release | 12 | 12 | 100% |
 | Cruise Elroy | 6 | 6 | 100% |
-| Frightened mode | 12 | 13 | 92% |
+| Frightened mode | 13 | 13 | 100% |
 | Lives & game flow | 9 | 10 | 90% |
-| HUD & display | 8 | 9 | 89% |
-| Audio | 0 | 1 | 0% |
-| **Overall** | **96** | **104** | **~92%** |
+| HUD & display | 9 | 9 | 100% |
+| Audio | 5 | 5 | 100% |
+| **Overall** | **111** | **112** | **~99%** |
 
 ---
 
@@ -226,5 +230,5 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Phase 6 — Speed System | ✅ Complete | Level-based Pac-Man speeds, ghost normal/fright/tunnel speeds, ghost tunnel teleport and wrap |
 | Phase 7 — Level Progression & Fruit | ✅ Complete | Per-level frightened duration, fruit spawning/scoring, extra life, fruit counter display |
 | Phase 8 — Cruise Elroy | ✅ Complete | Elroy 1/2 thresholds, speeds, scatter override, suspend on death, resume on Clyde exit |
-| Phase 9 — Cornering & Input Polish | ❌ Not started | |
-| Phase 10 — Polish & Edge Cases | ❌ Not started | |
+| Phase 9 — Cornering & Input Polish | ✅ Complete | Keyboard buffering unified with touch; red zone upward restriction at 4 intersections |
+| Phase 10 — Polish & Edge Cases | ✅ Complete | Ghost eye direction tracking; READY! pause at level start/death/advance; Web Audio sound effects |

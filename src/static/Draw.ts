@@ -1,5 +1,5 @@
 import { unit, gridW, gridH } from '../constants';
-import type { IGameObject } from '../types';
+import type { IGameObject, Direction } from '../types';
 import { gameState } from '../game-state';
 import { Levels } from './Levels';
 import { Stats } from './Stats';
@@ -142,7 +142,7 @@ export class Draw {
         const { color, x, y, scale, ghostMode } = obj;
 
         if (ghostMode === 'eyes') {
-            Draw.drawGhostEyes(color, x, y, scale);
+            Draw.drawGhostEyes(color, x, y, scale, obj.moveDir);
             return;
         }
 
@@ -162,7 +162,7 @@ export class Draw {
         }
 
         Draw.drawGhostBody(color, x, y, scale);
-        Draw.drawGhostEyes(color, x, y, scale);
+        Draw.drawGhostEyes(color, x, y, scale, obj.moveDir);
     }
 
     static drawFrightenedEyes(x: number, y: number, scale: number, bodyColor: string): void {
@@ -212,15 +212,24 @@ export class Draw {
         ctx.fill();
     }
 
-    static drawGhostEyes(_color: string, x: number, y: number, scale: number): void {
+    static drawGhostEyes(_color: string, x: number, y: number, scale: number, dir?: Direction): void {
         const ctx = gameState.ctx;
         const ghostSize = scale * unit;
         const eyeOffsetX = ghostSize * 0.42;
         const eyeOffsetY = ghostSize * 0.1;
         const eyeRadius  = ghostSize * 0.35;
         const pupilRadius = ghostSize * 0.15;
-        const pupilOffsetX = ghostSize * 0.1;
-        const pupilOffsetY = ghostSize * 0.08;
+        // Max pupil travel = eye radius minus pupil radius, damped slightly
+        const maxTravel = (eyeRadius - pupilRadius) * 0.65;
+
+        // Pupil center offset from eye center based on movement direction
+        let pdx = 0, pdy = maxTravel * 0.3; // default: slight downward gaze
+        switch (dir) {
+            case 'right': pdx = +maxTravel; pdy = 0; break;
+            case 'left':  pdx = -maxTravel; pdy = 0; break;
+            case 'up':    pdx = 0; pdy = -maxTravel; break;
+            case 'down':  pdx = 0; pdy = +maxTravel; break;
+        }
 
         for (const side of [-1, 1]) {
             const ex = x + side * eyeOffsetX;
@@ -232,10 +241,10 @@ export class Draw {
             ctx.arc(ex, ey, eyeRadius, 0, Math.PI * 2);
             ctx.fill();
 
-            // Dark blue pupil
+            // Dark blue pupil — tracks movement direction
             ctx.fillStyle = '#1a1aff';
             ctx.beginPath();
-            ctx.arc(ex + side * pupilOffsetX, ey + pupilOffsetY, pupilRadius, 0, Math.PI * 2);
+            ctx.arc(ex + pdx, ey + pdy, pupilRadius, 0, Math.PI * 2);
             ctx.fill();
         }
     }
@@ -366,6 +375,18 @@ export class Draw {
 
         // Fruit/level counter (bottom-right, last 7 fruits)
         Draw.fruitCounter();
+    }
+
+    static readyText(): void {
+        if (!gameState.showReady) return;
+        const ctx = gameState.ctx;
+        const fontSize = Math.round(unit * 0.9);
+        ctx.font = `bold ${fontSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'yellow';
+        // Row 26 is Pac-Man's starting row — show READY! there
+        ctx.fillText('READY!', gameState.canvas.width / 2, 26 * unit + unit / 2);
     }
 
     static gameOverScreen(): void {

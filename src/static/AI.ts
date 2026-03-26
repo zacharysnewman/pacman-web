@@ -8,6 +8,10 @@ interface TurnOption {
     y: number;
 }
 
+// Red-zone T-intersections: ghosts in scatter/chase cannot turn upward here.
+// Two pairs of intersections flank the ghost house (rows 14 and 26, cols 6 and 21).
+const RED_ZONE = new Set(['6,14', '21,14', '6,26', '21,26']);
+
 // Scatter corner targets by ghost color
 const SCATTER_TARGETS: Record<string, { x: number; y: number }> = {
     'red':     { x: 26, y: 0  },  // Blinky — top-right
@@ -119,9 +123,10 @@ export class AI {
         // Treat undefined (off-grid) as passable on the tunnel row so ghosts can wrap
         const TUNNEL_ROW = 17;
         const onTunnelRow = myY === TUNNEL_ROW;
+        const inRedZone = (mode === 'scatter' || mode === 'chase') && RED_ZONE.has(`${myX},${myY}`);
         const canMoveLeft  = ((obj.leftObject()  ?? 0) > 2 || (onTunnelRow && obj.leftObject()  === undefined)) && obj.moveDir !== 'right';
         const canMoveRight = ((obj.rightObject() ?? 0) > 2 || (onTunnelRow && obj.rightObject() === undefined)) && obj.moveDir !== 'left';
-        const canMoveUp    = (obj.topObject()    ?? 0) > 2 && obj.moveDir !== 'down';
+        const canMoveUp    = (obj.topObject()    ?? 0) > 2 && obj.moveDir !== 'down' && !inRedZone;
         const canMoveDown  = (obj.bottomObject() ?? 0) > 2 && obj.moveDir !== 'up';
 
         const turns: TurnOption[] = [];

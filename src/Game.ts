@@ -7,6 +7,7 @@ import { Move }  from './static/Move';
 import { AI }    from './static/AI';
 import { Levels } from './static/Levels';
 import { Stats }  from './static/Stats';
+import { Sound }  from './static/Sound';
 import { GameObject } from './object/GameObject';
 import type { IGameObject, Direction } from './types';
 
@@ -349,6 +350,8 @@ function eatGhost(ghost: IGameObject): void {
     gameState.pacmanFrozen = true;
     Time.addTimer(0.5, () => { gameState.pacmanFrozen = false; });
 
+    Sound.ghostEaten();
+
     // Ghost becomes eyes and speeds home
     ghost.ghostMode = 'eyes';
     ghost.moveSpeed = SPEED_EYES;
@@ -528,6 +531,7 @@ function countRemainingDots(): number {
 
 function levelClear(): void {
     gameState.frozen = true;
+    Sound.levelClear();
     gameState.fruitHistory.push(gameState.level);
     Time.addTimer(1.5, () => {
         gameState.level++;
@@ -537,13 +541,18 @@ function levelClear(): void {
         gameState.fruitSpawned2 = false;
         gameState.fruitActive = null;
         resetPositions(false);
-        gameState.frozen = false;
+        gameState.showReady = true;
+        Time.addTimer(1.5, () => {
+            gameState.frozen = false;
+            gameState.showReady = false;
+        });
     });
 }
 
 function loseLife(): void {
     if (gameState.frozen || gameState.gameOver) return;
     gameState.frozen = true;
+    Sound.death();
     Stats.lives--;
 
     if (Stats.lives <= 0) {
@@ -553,7 +562,11 @@ function loseLife(): void {
 
     Time.addTimer(1.0, () => {
         resetPositions(true); // afterDeath=true → enable global dot counter
-        gameState.frozen = false;
+        gameState.showReady = true;
+        Time.addTimer(1.5, () => {
+            gameState.frozen = false;
+            gameState.showReady = false;
+        });
     });
 }
 
@@ -587,6 +600,7 @@ function pacmanOnTileChanged(x: number, y: number): void {
         gameState.pacman.moveSpeed = 0.0;
         Time.addTimer(0.01666666667, () => { gameState.pacman.moveSpeed = getCurrentPacmanSpeed(); });
         incrementDotCounters();
+        Sound.dot();
         if (countRemainingDots() === 0) levelClear();
     }
 
@@ -597,6 +611,7 @@ function pacmanOnTileChanged(x: number, y: number): void {
         gameState.pacman.moveSpeed = 0.0;
         Time.addTimer(0.05, () => { gameState.pacman.moveSpeed = getCurrentPacmanSpeed(); });
         incrementDotCounters();
+        Sound.energizer();
         activateFrightened();
         if (countRemainingDots() === 0) levelClear();
     }
@@ -651,6 +666,7 @@ function update(): void {
     }
 
     Draw.scorePopups();
+    Draw.readyText();
 
     if (!gameState.frozen && !gameState.gameOver) {
         checkCollisions();
@@ -669,6 +685,12 @@ function update(): void {
 function start(): void {
     Time.setup();
     initializeLevel();
+    gameState.frozen = true;
+    gameState.showReady = true;
+    Time.addTimer(2.0, () => {
+        gameState.frozen = false;
+        gameState.showReady = false;
+    });
     update();
 }
 
@@ -689,6 +711,7 @@ function setupTouchControls(): void {
 
     document.addEventListener('touchstart', (e: TouchEvent) => {
         e.preventDefault();
+        Sound.init();
         touchStartX = e.changedTouches[0].clientX;
         touchStartY = e.changedTouches[0].clientY;
         swipeFiredThisTouch = false;
@@ -728,7 +751,7 @@ window.onload = function () {
     gameState.canvas = canvas;
     gameState.ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
-    document.onkeydown = Input.checkKeyDown;
+    document.onkeydown = (e: KeyboardEvent) => { Sound.init(); Input.checkKeyDown(e); };
     document.onkeyup   = Input.checkKeyUp;
 
     resizeCanvas();
