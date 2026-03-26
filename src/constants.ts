@@ -7,11 +7,15 @@ export const TUNNEL_ROW = 17;
 export const TUNNEL_SLOW_COL_MAX = 5;   // cols 0–5 (left side)
 export const TUNNEL_SLOW_COL_MIN = 22;  // cols 22–27 (right side)
 
-// T-junctions where ghosts cannot turn upward in scatter/chase mode
+// T-junctions where ghosts cannot turn upward in scatter/chase mode.
+// These are the four intersections flanking the ghost house where horizontal
+// corridors meet the vertical ghost-house corridors (cols 12 & 15):
+//   Upper pair: row 14 (top wall of ghost house interior)
+//   Lower pair: row 26 (lower horizontal corridor)
 export const RED_ZONE_TILES = [
-    { x: 12, y: 13 },
-    { x: 15, y: 13 },
-    { x: 12, y: 25 },
-    { x: 15, y: 25 },
+    { x: 12, y: 14 },
+    { x: 15, y: 14 },
+    { x: 12, y: 26 },
+    { x: 15, y: 26 },
 ] as const;
 export const RED_ZONE = new Set(RED_ZONE_TILES.map(t => `${t.x},${t.y}`));
