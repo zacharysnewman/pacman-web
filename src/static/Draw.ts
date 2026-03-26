@@ -21,6 +21,7 @@ type WallDrawFn = (x: number, y: number) => void;
 
 export class Draw {
     static pacmanAnim = 0;
+    static pacmanAnimTime = 0;
 
     static normalizedUnit(): number {
         return 1;
@@ -82,9 +83,11 @@ export class Draw {
             false);
         ctx.fill();
 
-        const event = Time.frameCount % Math.round(60 / frameChangePerSecond);
-        if (event === 0) Draw.pacmanAnim++;
-        if (Draw.pacmanAnim >= frames.length) Draw.pacmanAnim = 0;
+        // Advance only during active game time (pauses when frozen or eating-ghost freeze)
+        if (!gameState.frozen && !gameState.pacmanFrozen) {
+            Draw.pacmanAnimTime += Time.deltaTime;
+        }
+        Draw.pacmanAnim = Math.floor(Draw.pacmanAnimTime * frameChangePerSecond) % frames.length;
     }
 
     static getFrightenedDuration(level: number): number {
