@@ -76,9 +76,15 @@ export class AI {
             targetX = EYES_TARGET.x;
             targetY = EYES_TARGET.y;
         } else if (mode === 'scatter') {
-            const corner = SCATTER_TARGETS[obj.color] ?? { x: 0, y: 0 };
-            targetX = corner.x;
-            targetY = corner.y;
+            // Cruise Elroy: Blinky overrides scatter to keep chasing Pac-Man
+            if (obj.color === 'red' && gameState.elroyLevel > 0) {
+                targetX = gameState.pacman.roundedX();
+                targetY = gameState.pacman.roundedY();
+            } else {
+                const corner = SCATTER_TARGETS[obj.color] ?? { x: 0, y: 0 };
+                targetX = corner.x;
+                targetY = corner.y;
+            }
         } else {
             // chase — per-ghost authentic targeting
             const pacman = gameState.pacman;

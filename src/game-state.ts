@@ -33,4 +33,7 @@ export const gameState = {
     fruitSpawned1: false,
     fruitSpawned2: false,
     fruitHistory: [] as number[],
+    // Cruise Elroy state (Phase 8)
+    elroyLevel: 0 as 0 | 1 | 2,   // 0 = inactive, 1 = Elroy 1, 2 = Elroy 2
+    elroySuspended: false,          // true after Pac-Man death; clears when Clyde exits house
 };

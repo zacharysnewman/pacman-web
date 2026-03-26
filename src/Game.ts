@@ -96,6 +96,59 @@ function getGhostTunnelSpeed(level: number): number {
     return 0.50; // level 5+
 }
 
+// ── Cruise Elroy (Phase 8) ────────────────────────────────────────────────────
+
+// Dot count at which Blinky enters Elroy 1 / Elroy 2 for the current level
+function getElroyThreshold1(level: number): number {
+    if (level === 1) return 20;
+    if (level === 2) return 30;
+    if (level <= 7)  return 40;
+    if (level <= 10) return 50;
+    if (level <= 13) return 60;
+    if (level <= 17) return 80;
+    return 100; // level 18+
+}
+
+function getElroyThreshold2(level: number): number {
+    if (level === 1) return 10;
+    if (level === 2) return 15;
+    if (level <= 7)  return 20;
+    if (level <= 10) return 25;
+    if (level <= 13) return 30;
+    if (level <= 17) return 40;
+    return 50; // level 18+
+}
+
+function getElroySpeed1(level: number): number {
+    if (level === 1) return 0.80;
+    if (level <= 4)  return 0.90;
+    return 1.00; // level 5+
+}
+
+function getElroySpeed2(level: number): number {
+    if (level === 1) return 0.85;
+    if (level <= 4)  return 0.95;
+    return 1.05; // level 5+
+}
+
+// Total collectible dot count (240 small dots + 4 energizers)
+const TOTAL_DOTS = 244;
+
+function updateElroy(): void {
+    if (gameState.elroySuspended) {
+        gameState.elroyLevel = 0;
+        return;
+    }
+    const remaining = TOTAL_DOTS - gameState.dotsEaten;
+    if (remaining <= getElroyThreshold2(gameState.level)) {
+        gameState.elroyLevel = 2;
+    } else if (remaining <= getElroyThreshold1(gameState.level)) {
+        gameState.elroyLevel = 1;
+    } else {
+        gameState.elroyLevel = 0;
+    }
+}
+
 // Returns the speed Pac-Man should be moving at right now (used after a dot pause)
 function getCurrentPacmanSpeed(): number {
     const anyFrightened = gameState.ghosts.some(g => g.ghostMode === 'frightened');
@@ -125,6 +178,11 @@ function updateGhostTunnelSpeeds(): void {
             ghost.moveSpeed = getGhostTunnelSpeed(gameState.level);
         } else if (ghost.ghostMode === 'frightened') {
             ghost.moveSpeed = getGhostFrightSpeed(gameState.level);
+        } else if (ghost.color === 'red' && gameState.elroyLevel > 0) {
+            // Cruise Elroy: Blinky gets a speed boost in chase/scatter mode
+            ghost.moveSpeed = gameState.elroyLevel === 2
+                ? getElroySpeed2(gameState.level)
+                : getElroySpeed1(gameState.level);
         } else {
             ghost.moveSpeed = getGhostNormalSpeed(gameState.level);
         }
@@ -301,6 +359,10 @@ function eatGhost(ghost: IGameObject): void {
 function releaseGhost(ghost: IGameObject): void {
     ghost.ghostMode = 'exiting';
     ghost.moveSpeed = getGhostNormalSpeed(gameState.level);
+    // Cruise Elroy resumes once Clyde begins exiting the ghost house
+    if (ghost.color === 'orange' && gameState.elroySuspended) {
+        gameState.elroySuspended = false;
+    }
 }
 
 function getNextHouseGhost(): IGameObject | null {
@@ -444,6 +506,9 @@ function resetPositions(afterDeath = false): void {
     gameState.scorePopups = [];
     gameState.pacmanFrozen = false;
     gameState.fruitActive = null;
+    // Cruise Elroy: suspend after death; clear for fresh level start
+    gameState.elroyLevel = 0;
+    gameState.elroySuspended = afterDeath;
     resetScatterChaseTimer();
     AI.resetPrng();
 
@@ -573,6 +638,7 @@ function update(): void {
         Input.update();
         updateScatterChaseMode(Time.deltaTime);
         updateFrightenedMode(Time.deltaTime);
+        updateElroy();
         updateGhostTunnelSpeeds();
         updateIdleTimer(Time.deltaTime);
         updateFruit();

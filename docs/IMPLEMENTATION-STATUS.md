@@ -125,12 +125,12 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 
 | Feature | Status | Notes |
 |---|---|---|
-| Dot count tracking | ❌ | |
-| Elroy 1 speed boost | ❌ | |
-| Elroy 2 speed boost | ❌ | |
-| Elroy scatter override (keep chasing) | ❌ | |
-| Elroy suspended after Pac-Man death | ❌ | |
-| Elroy resumes when Clyde exits | ❌ | |
+| Dot count tracking | ✅ | Derived from `TOTAL_DOTS - gameState.dotsEaten` each frame |
+| Elroy 1 speed boost | ✅ | `getElroySpeed1()` applied in `updateGhostTunnelSpeeds()` when `elroyLevel === 1` |
+| Elroy 2 speed boost | ✅ | `getElroySpeed2()` applied in `updateGhostTunnelSpeeds()` when `elroyLevel === 2` |
+| Elroy scatter override (keep chasing) | ✅ | `AI.ghostTileCenter()` targets Pac-Man instead of corner when Blinky in scatter + Elroy active |
+| Elroy suspended after Pac-Man death | ✅ | `gameState.elroySuspended = true` set in `resetPositions(afterDeath=true)` |
+| Elroy resumes when Clyde exits | ✅ | `releaseGhost(clyde)` clears `elroySuspended`; immediate at L3+ since Clyde limit is 0 |
 
 ---
 
@@ -205,12 +205,12 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Ghost AI — modes | 7 | 7 | 100% |
 | Ghost AI — targeting | 8 | 8 | 100% |
 | Ghost house & release | 12 | 12 | 100% |
-| Cruise Elroy | 0 | 6 | 0% |
+| Cruise Elroy | 6 | 6 | 100% |
 | Frightened mode | 12 | 13 | 92% |
 | Lives & game flow | 9 | 10 | 90% |
 | HUD & display | 8 | 9 | 89% |
 | Audio | 0 | 1 | 0% |
-| **Overall** | **90** | **104** | **~87%** |
+| **Overall** | **96** | **104** | **~92%** |
 
 ---
 
@@ -225,6 +225,6 @@ Consolidated view of what is and is not yet implemented in `Pacman.js`, measured
 | Phase 5 — Authentic Ghost AI | ✅ Complete | Pinky 4-ahead, Inky Blinky-vector, Clyde 8-tile proximity, up overflow bug |
 | Phase 6 — Speed System | ✅ Complete | Level-based Pac-Man speeds, ghost normal/fright/tunnel speeds, ghost tunnel teleport and wrap |
 | Phase 7 — Level Progression & Fruit | ✅ Complete | Per-level frightened duration, fruit spawning/scoring, extra life, fruit counter display |
-| Phase 8 — Cruise Elroy | ❌ Not started | |
+| Phase 8 — Cruise Elroy | ✅ Complete | Elroy 1/2 thresholds, speeds, scatter override, suspend on death, resume on Clyde exit |
 | Phase 9 — Cornering & Input Polish | ❌ Not started | |
 | Phase 10 — Polish & Edge Cases | ❌ Not started | |

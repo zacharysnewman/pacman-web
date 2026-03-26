@@ -236,6 +236,27 @@ The game is a complete, authentic reproduction of the original arcade Pac-Man.
 
 ---
 
+## Known Original-Game Exploits & Bugs (Not Implemented)
+
+These are obscure behaviors from the original arcade ROM that are intentionally excluded from this implementation. Listed here for reference.
+
+### Upward Overflow Bug (Partially Reproduced)
+When Pac-Man faces up, the original ROM applies an offset of `(-N, -N)` instead of `(0, -N)` to compute the tile N steps ahead. This causes Pinky's and Inky's targeting to deviate left when Pac-Man moves upward. **This bug is reproduced** in `AI.tilesAheadOfPacman()` because it's part of the authentic ghost AI. Listed here for clarity.
+
+### Stuck-Ghost Exploit (Global Counter Flaw)
+If Pac-Man dies while Clyde is still inside the ghost house, the global dot counter activates. If all 32 dots are eaten before Clyde exits, the counter deactivates — but Pinky and Inky's thresholds (7 and 17) never reset Clyde's threshold. By deliberately keeping Clyde inside and manipulating the counter, a player can prevent Inky and Clyde from ever leaving the house. **Not implemented.** Reference: [08-ghost-house.md](./08-ghost-house.md).
+
+### Pass-Through Collision Edge Case
+If Pac-Man and a ghost swap tiles in the same frame (each moving through the other's previous position), neither actor occupies the same tile and the standard tile-based collision check misses them. The original game has the same flaw. **Not implemented** — requires sub-tile velocity checking. Reference: [10-maze-logic.md](./10-maze-logic.md).
+
+### Kill Screen (Level 256 Overflow)
+The original ROM stores the level number in a single byte. At level 256 the counter overflows to 0, corrupting the right half of the maze and making the game unwinnable. This implementation uses a JavaScript number and does not reproduce this behavior.
+
+### Pinky Corner Ambush Glitch
+At startup, Pinky targets 4 tiles ahead of Pac-Man facing left (the default direction), which puts her initial scatter-phase target inside the top-left corner wall. This is an artifact of the upward-overflow and direction-initialization interaction, not an intentional design. No action needed.
+
+---
+
 ## Phase Summary
 
 | Phase | Key Deliverable | Game State After |
