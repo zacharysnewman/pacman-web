@@ -665,6 +665,26 @@ export class Draw {
                 ctx.fill();
                 ctx.setLineDash([4, 3]);
             }
+
+            // Large arrowhead at the final point of the path
+            const last = path[path.length - 1];
+            const prev = path[path.length - 2];
+            const ex1 = prev.x * unit + unit / 2, ey1 = prev.y * unit + unit / 2;
+            const ex2 = last.x * unit + unit / 2, ey2 = last.y * unit + unit / 2;
+            const edx = ex2 - ex1, edy = ey2 - ey1;
+            const elen = Math.sqrt(edx * edx + edy * edy) || 1;
+            const epx = -edy / elen * off, epy = edx / elen * off;
+            const endX = ex2 + epx, endY = ey2 + epy;
+            const endAngle = Math.atan2(edy, edx);
+            const ehl = 10;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - ehl * Math.cos(endAngle - Math.PI / 6), endY - ehl * Math.sin(endAngle - Math.PI / 6));
+            ctx.lineTo(endX - ehl * Math.cos(endAngle + Math.PI / 6), endY - ehl * Math.sin(endAngle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+
             ctx.restore();
         }
     }
