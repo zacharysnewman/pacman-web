@@ -478,15 +478,15 @@ function resetPositions(afterDeath = false): void {
     bl.ghostMode = 'scatter';
 
     // House ghosts reset to their starting positions inside
-    const houseActors: Array<{ ghost: IGameObject; start: { x: number; y: number } }> = [
-        { ghost: gameState.pinky, start: START.pinky },
-        { ghost: gameState.inky,  start: START.inky  },
-        { ghost: gameState.clyde, start: START.clyde  },
+    const houseActors: Array<{ ghost: IGameObject; start: { x: number; y: number }; dir: Direction }> = [
+        { ghost: gameState.pinky, start: START.pinky, dir: 'down' }, // center starts down
+        { ghost: gameState.inky,  start: START.inky,  dir: 'up'   }, // left starts up
+        { ghost: gameState.clyde, start: START.clyde, dir: 'up'   }, // right starts up
     ];
-    for (const { ghost, start } of houseActors) {
+    for (const { ghost, start, dir } of houseActors) {
         const pos = tileToPixel(start.x, start.y);
         ghost.x = pos.x; ghost.y = pos.y;
-        ghost.moveDir = 'down'; // start bouncing downward
+        ghost.moveDir = dir;
         ghost.moveSpeed = 1.0;  // bounce/exit uses fixed speed; maze speed applied on release
         ghost.ghostMode = 'house';
     }
