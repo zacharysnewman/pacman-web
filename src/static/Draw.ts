@@ -55,6 +55,7 @@ export class Draw {
     }
 
     static pacman(obj: IGameObject): void {
+        if (gameState.pacmanDying) { Draw.pacmanDeathAnim(obj); return; }
         const { color, x, y, scale } = obj;
         const ctx = gameState.ctx;
         const frames = [0.0, 0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.1];
@@ -88,6 +89,52 @@ export class Draw {
             Draw.pacmanAnimTime += Time.deltaTime;
         }
         Draw.pacmanAnim = Math.floor(Draw.pacmanAnimTime * frameChangePerSecond) % frames.length;
+    }
+
+    private static pacmanDeathAnim(obj: IGameObject): void {
+        const ctx = gameState.ctx;
+        const { x, y, scale, moveDir } = obj;
+        const size = scale * unit;
+        const p = gameState.pacmanDeathProgress;
+
+        // Phase 1 (0 → 0.62): mouth opens progressively wider until Pac-Man vanishes
+        const OPEN_END = 0.62;
+        if (p < OPEN_END) {
+            const t = p / OPEN_END;                    // 0 → 1
+            const mouthAngle = t * Math.PI;            // 0 → π (fully open = gone)
+            // Orient mouth in the direction Pac-Man was travelling
+            let baseAngle = 0;
+            if (moveDir === 'left')  baseAngle = Math.PI;
+            if (moveDir === 'up')    baseAngle = -Math.PI / 2;
+            if (moveDir === 'down')  baseAngle = Math.PI / 2;
+            const startAngle = baseAngle + mouthAngle;
+            const endAngle   = baseAngle - mouthAngle;
+            ctx.fillStyle = 'yellow';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.arc(x, y, size, startAngle, endAngle, false);
+            ctx.closePath();
+            ctx.fill();
+            return;
+        }
+
+        // Phase 2 (0.62 → 1.0): yellow confetti burst
+        const confettiP = (p - OPEN_END) / (1 - OPEN_END); // 0 → 1
+        const alpha = 1 - confettiP;
+        const NUM_PARTICLES = 20;
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+            const angle   = (i / NUM_PARTICLES) * Math.PI * 2;
+            const speed   = (1.0 + (i % 4) * 0.35) * unit * 2.5;
+            const px = x + Math.cos(angle) * speed * confettiP;
+            const py = y + Math.sin(angle) * speed * confettiP;
+            const pSize   = unit * (0.12 + (i % 3) * 0.06) * (1 - confettiP * 0.5);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = i % 3 === 0 ? '#ffe000' : i % 3 === 1 ? '#ffaa00' : '#fff176';
+            ctx.beginPath();
+            ctx.arc(px, py, pSize, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
     }
 
     static getFrightenedDuration(level: number): number {
@@ -139,6 +186,7 @@ export class Draw {
     }
 
     static ghost(obj: IGameObject): void {
+        if (gameState.pacmanDying) return;
         const { color, x, y, scale, ghostMode } = obj;
 
         if (ghostMode === 'eyes') {

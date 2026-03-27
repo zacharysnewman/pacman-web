@@ -605,29 +605,37 @@ function showInitialsEntry(onDone: () => void): void {
     setTimeout(() => input.focus(), 80);
 }
 
+const DEATH_ANIM_DURATION = 1.5;
+
 function loseLife(): void {
     if (gameState.frozen || gameState.gameOver) return;
     gameState.frozen = true;
+    gameState.pacmanDying = true;
+    gameState.pacmanDeathProgress = 0;
     Sound.death();
     Stats.lives--;
 
     if (Stats.lives <= 0) {
         gameState.gameOver = true;
-        // After 2s of game-over screen: enter initials if score qualifies, then return to menu
-        Time.addTimer(2.0, () => {
-            if (Stats.qualifiesForTopTen(Stats.currentScore)) {
-                showInitialsEntry(() => {
-                    Time.addTimer(1.5, () => { returningToMenu = true; });
-                });
-            } else {
-                Time.addTimer(2.0, () => { returningToMenu = true; });
-            }
+        Time.addTimer(DEATH_ANIM_DURATION, () => {
+            gameState.pacmanDying = false;
+            // After death anim, show game-over then enter initials / return to menu
+            Time.addTimer(1.5, () => {
+                if (Stats.qualifiesForTopTen(Stats.currentScore)) {
+                    showInitialsEntry(() => {
+                        Time.addTimer(1.5, () => { returningToMenu = true; });
+                    });
+                } else {
+                    Time.addTimer(2.0, () => { returningToMenu = true; });
+                }
+            });
         });
         return;
     }
 
-    Time.addTimer(1.0, () => {
-        resetPositions(true); // afterDeath=true → enable global dot counter
+    Time.addTimer(DEATH_ANIM_DURATION, () => {
+        gameState.pacmanDying = false;
+        resetPositions(true);
         gameState.showReady = true;
         Time.addTimer(1.5, () => {
             gameState.frozen = false;
@@ -730,6 +738,12 @@ function update(): void {
         updateGhostTunnelSpeeds();
         updateIdleTimer(Time.deltaTime);
         updateFruit();
+    }
+
+    if (gameState.pacmanDying) {
+        gameState.pacmanDeathProgress = Math.min(
+            gameState.pacmanDeathProgress + Time.deltaTime / DEATH_ANIM_DURATION, 1.0,
+        );
     }
 
     Draw.level();

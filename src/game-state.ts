@@ -38,6 +38,9 @@ export const gameState = {
     elroySuspended: false,          // true after Pac-Man death; clears when Clyde exits house
     // Ready state (Phase 10)
     showReady: false,
+    // Death animation
+    pacmanDying: false,
+    pacmanDeathProgress: 0,
     // Debug overlay (enabled via ?dev=true)
     debugEnabled: false,
     debugShowTargetTiles: false,
