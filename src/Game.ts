@@ -794,6 +794,74 @@ function start(): void {
 let gameStarted = false;
 let returningToMenu = false;
 
+let menuAnimTime = 0;
+let menuAnimLastTs = 0;
+
+function drawMenuPacman(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, dir: 'left' | 'right', mouthOpen: number): void {
+    const dirMultiplier = dir === 'right' ? 0 : 1;
+    ctx.fillStyle = 'yellow';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, size,
+        mouthOpen * Math.PI + Math.PI * dirMultiplier,
+        (1.0 + mouthOpen) * Math.PI + Math.PI * dirMultiplier,
+        false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, size,
+        (1 - mouthOpen) * Math.PI + Math.PI * dirMultiplier,
+        (1 + (1 - mouthOpen)) * Math.PI + Math.PI * dirMultiplier,
+        false);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function drawMenuChase(t: number): void {
+    const ctx = gameState.ctx;
+    const w = gameState.canvas.width;
+    const scale = 0.55;
+    const size = scale * unit;
+    const y = unit * 28.5;
+    const spacing = unit * 1.8;
+    const ghostColors = ['red', '#ffb8ff', 'cyan', 'orange'];
+    const HALF = 4;
+    const CYCLE = HALF * 2;
+    const totalDist = w + 2 * unit + ghostColors.length * spacing;
+    const phase = Math.floor((t % CYCLE) / HALF);
+    const progress = ((t % CYCLE) % HALF) / HALF;
+
+    const frames = [0.0, 0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.1];
+    const mouthOpen = frames[Math.floor(t * 30) % frames.length];
+
+    if (phase === 0) {
+        // Pac-Man fleeing right, ghosts chasing
+        const pacX = -unit + totalDist * progress;
+        for (let i = ghostColors.length - 1; i >= 0; i--) {
+            const gx = pacX - (i + 1) * spacing;
+            if (gx < -2 * unit || gx > w + 2 * unit) continue;
+            Draw.drawGhostBody(ghostColors[i], gx, y, scale);
+            Draw.drawGhostEyes(ghostColors[i], gx, y, scale, 'right');
+        }
+        if (pacX > -2 * unit && pacX < w + 2 * unit) {
+            drawMenuPacman(ctx, pacX, y, size, 'right', mouthOpen);
+        }
+    } else {
+        // Frightened ghosts fleeing left, Pac-Man chasing
+        const pacX = w + unit - totalDist * progress;
+        for (let i = 0; i < ghostColors.length; i++) {
+            const gx = pacX - (i + 1) * spacing;
+            if (gx < -2 * unit || gx > w + 2 * unit) continue;
+            Draw.drawGhostBody('#0000cc', gx, y, scale);
+            Draw.drawFrightenedEyes(gx, y, scale, '#0000cc');
+        }
+        if (pacX > -2 * unit && pacX < w + 2 * unit) {
+            drawMenuPacman(ctx, pacX, y, size, 'left', mouthOpen);
+        }
+    }
+}
+
 function startScreenLoop(): void {
     if (gameStarted) return;
     const ctx = gameState.ctx;
@@ -820,6 +888,13 @@ function startScreenLoop(): void {
         const line = `${rank} ${initials} ${String(score).padStart(6)}`;
         ctx.fillText(line, w / 2, unit * 11.5 + i * unit * 1.5);
     }
+
+    // Animated chase scene
+    const now = performance.now();
+    const menuDt = menuAnimLastTs > 0 ? Math.min((now - menuAnimLastTs) / 1000, 0.05) : 0;
+    menuAnimLastTs = now;
+    menuAnimTime += menuDt;
+    drawMenuChase(menuAnimTime);
 
     // Tap to start
     ctx.fillStyle = 'white';
