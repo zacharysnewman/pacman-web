@@ -1208,7 +1208,7 @@ window.onload = function () {
 
     document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
     document.addEventListener('click', handleMenuInteraction);
-    document.addEventListener('touchstart', handleMenuInteraction as EventListener, { passive: false });
+    document.addEventListener('touchend', (e: Event) => { e.preventDefault(); handleMenuInteraction(); }, { passive: false } as EventListenerOptions);
 
     startScreenLoop();
 };
