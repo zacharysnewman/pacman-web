@@ -51,10 +51,40 @@ export class Stats {
 
     static saveScore(initials: string, score: number): void {
         if (score <= 0) return;
-        const scores = Stats.loadHighScores();
-        scores.push({ initials: initials.toUpperCase().padEnd(3, 'A').slice(0, 3), score });
-        scores.sort((a, b) => b.score - a.score);
-        const top10 = scores.slice(0, 10);
+        const norm = initials.toUpperCase().padEnd(3, 'A').slice(0, 3);
+
+        // Load raw stored scores (without default padding)
+        let stored: HighScoreEntry[];
+        try {
+            const data = localStorage.getItem(LS_KEY);
+            stored = data ? JSON.parse(data) as HighScoreEntry[] : [];
+            if (stored.length > 0 && typeof stored[0] !== 'object') stored = [];
+        } catch { stored = []; }
+
+        // Replace existing entry for same initials if new score is higher, else add
+        const existingIdx = stored.findIndex(e => e.initials === norm);
+        if (existingIdx !== -1) {
+            if (score > stored[existingIdx].score) stored[existingIdx].score = score;
+        } else {
+            stored.push({ initials: norm, score });
+        }
+
+        stored.sort((a, b) => b.score - a.score);
+        let top10 = stored.slice(0, 10);
+
+        // Pad with defaults if deduplication left fewer than 10 entries
+        if (top10.length < 10) {
+            const presentInitials = new Set(top10.map(e => e.initials));
+            for (const def of DEFAULT_SCORES) {
+                if (top10.length >= 10) break;
+                if (!presentInitials.has(def.initials)) {
+                    top10.push(def);
+                    presentInitials.add(def.initials);
+                }
+            }
+            top10.sort((a, b) => b.score - a.score);
+        }
+
         localStorage.setItem(LS_KEY, JSON.stringify(top10));
         Stats.highScore = top10[0].score;
     }
