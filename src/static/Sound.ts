@@ -16,6 +16,15 @@ export class Sound {
         audio.loop = true;
         audio.volume = 0.5;
         Sound.menuAudio = audio;
+
+        document.addEventListener('visibilitychange', () => {
+            if (!Sound.menuAudio || Sound.menuAudio.paused) return;
+            if (document.hidden) {
+                Sound.menuAudio.pause();
+            } else {
+                Sound.menuAudio.play().catch(() => {/* autoplay blocked — no-op */});
+            }
+        });
     }
 
     // Must be called during or after a user gesture (browser autoplay policy)
