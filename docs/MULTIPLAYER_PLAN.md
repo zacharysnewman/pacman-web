@@ -20,14 +20,12 @@
 | Input assignment | **Keyboard and touch are hardcoded to P1.** Controllers are assigned by connection order: gamepad[0] → P1, gamepad[1] → P2, gamepad[2] → P3, gamepad[3] → P4. P1 therefore accepts keyboard, touch, and gamepad[0] simultaneously. P2–P4 require a connected controller. |
 | Mid-level player death | Players **do not respawn mid-level**. Death animation plays, then the player sits out for the remainder of the level. Ghosts and other players keep moving — no global freeze on individual death. |
 | "READY!" screen | Only shown at **game start and level clear** — not after individual player deaths |
+| Simultaneous death animations | Both animations **play concurrently** — no queuing |
+| Fruit collection | **First-come-first-served** — fruit disappears on first contact; no shared award |
 
-## Open Design Questions (Unresolved)
+## Open Design Questions
 
-| # | Question | Options |
-|---|---|---|
-| 1 | **P2/P3/P4 colors** | Yellow taken; candidates: green, magenta, white, coral — avoid blue (frightened ghosts) and cyan (Inky) |
-| 2 | **Death animation overlap** | Two players dying simultaneously — play both anims at once vs. queue them |
-| 3 | **Fruit split** | First player to reach it eats it (no share) vs. simultaneous proximity awards to all nearby |
+All design questions resolved. No open items.
 
 ---
 
