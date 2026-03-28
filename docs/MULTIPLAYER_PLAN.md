@@ -15,6 +15,7 @@
 | Extra life at 10k | **One life added to the shared pool** (not per player); triggers once per game regardless of which player crosses 10k |
 | Elroy trigger | **No change** — based on total dots remaining in the shared maze; works identically with multiple players |
 | Inky's targeting (Blinky reference) | **Option A** — Inky finds his nearest Pacman and uses that actor for both the intermediate point and the Blinky vector; pincer behaviour is preserved against whoever Inky is closest to |
+| Player visual differentiation | All players are **yellow Pac-Man**; differentiated by props (see Phase 7) |
 | Score | **Shared combined score** — all players contribute to one score; not tracked per-player |
 | High score entries | **Single entry** — one combined score, one set of initials |
 | Input assignment | **Keyboard and touch are hardcoded to P1.** Controllers are assigned by connection order: gamepad[0] → P1, gamepad[1] → P2, gamepad[2] → P3, gamepad[3] → P4. P1 therefore accepts keyboard, touch, and gamepad[0] simultaneously. P2–P4 require a connected controller. |
@@ -25,9 +26,7 @@
 
 ## Open Design Questions
 
-| # | Question | Options |
-|---|---|---|
-| 1 | **P2/P3/P4 colors** | Yellow taken (P1); avoid blue (frightened ghosts) and cyan (Inky); candidates: green, magenta, white, coral |
+All design questions resolved. No open items.
 
 ---
 
@@ -259,13 +258,33 @@ All chase-mode targeting resolves the Pacman reference through `nearestPlayer()`
 
 ### `src/static/Draw.ts` — `Draw.pacman(obj, player)`
 - Draw function closes over player: `(obj) => Draw.pacman(obj, player)`
-- Player colors (subject to Design Question 1):
-  - P1: `yellow`
-  - P2: `#00e676` (green)
-  - P3: `#ff6ec7` (magenta)
-  - P4: `white`
+- All players are **yellow** — differentiated by props, not color
+- After drawing the base Pac-Man circle, call `Draw.pacmanProp(obj, player.id)`
 - Death anim reads `player.deathProgress` instead of `gameState.pacmanDeathProgress`
-- Each player's death anim plays independently
+- Each player's death anim plays independently; props render during Phase 1 (mouth-opening) then vanish with the confetti burst — no special handling needed
+
+### `src/static/Draw.ts` — `Draw.pacmanProp(obj, id)`
+Props are drawn relative to the actor's pixel position and current `moveDir`.
+
+**P1 — no prop** (standard Pac-Man)
+
+**P2 — Backpack Man**
+- A brown (`#8B5E3C`) rounded rectangle on the **back** of Pac-Man (opposite to `moveDir`)
+- Size: ~`unit * 0.45` wide × `unit * 0.55` tall
+- Positioned just outside the circle edge in the reverse direction
+- Slightly rounded corners (`ctx.roundRect` or manual arc)
+
+**P3 — Miss Pac-Man**
+- A purple (`#b44fff`) bow always at **12 o'clock** (top of head), independent of `moveDir`
+- Two small filled triangles/ellipses mirrored horizontally with a small circle in the center
+- Bow sits just above the circle's top edge
+- Purple chosen to avoid: red (Blinky), hotpink (Pinky), cyan (Inky), orange (Clyde), blue (frightened)
+
+**P4 — Tic Tac Man**
+- A white (`#f0f0f0`) pill/oval on the **back** of Pac-Man (same positioning logic as backpack)
+- Oriented with its long axis perpendicular to the movement direction (stands upright relative to travel)
+- Faint grey (`#aaaaaa`) 1px stroke so it reads against the black background
+- Size: ~`unit * 0.25` wide × `unit * 0.45` tall
 
 ### `src/static/Draw.ts` — `Draw.ghost(obj)`
 - Remove the `gameState.pacmanDying` visibility check entirely — ghosts are **always visible** during individual player deaths since the game keeps running
