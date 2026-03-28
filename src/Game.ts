@@ -952,6 +952,11 @@ function startScreenLoop(): void {
     ctx.font = `bold ${Math.round(unit * 0.9)}px monospace`;
     ctx.fillText(audioUnlocked ? 'TAP TO START' : 'TAP TO PLAY MUSIC', w / 2, unit * 31);
 
+    // Music credit
+    ctx.fillStyle = '#888';
+    ctx.font = `${Math.round(unit * 0.6)}px monospace`;
+    ctx.fillText('Music by HeatleyBros', w / 2, unit * 33.5);
+
     window.requestAnimationFrame(startScreenLoop);
 }
 
