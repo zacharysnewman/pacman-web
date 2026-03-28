@@ -548,6 +548,7 @@ function levelClear(): void {
 }
 
 function showInitialsEntry(onDone: () => void): void {
+    Sound.stopSiren();
     const overlay = document.createElement('div');
     overlay.style.cssText = [
         'position:fixed;inset:0;z-index:2000',
@@ -718,6 +719,18 @@ function initializeLevel(): void {
     resetPositions(false);
 }
 
+// ── Ambient Siren ─────────────────────────────────────────────────────────────
+
+function updateAmbientSiren(): void {
+    if (gameState.frightenedRemaining > 0) {
+        Sound.startSiren('blue');
+    } else if (gameState.ghosts.some(g => g.ghostMode === 'eyes')) {
+        Sound.startSiren('eyes');
+    } else {
+        Sound.startSiren('normal');
+    }
+}
+
 // ── Main Update Loop ──────────────────────────────────────────────────────────
 
 function update(): void {
@@ -726,6 +739,8 @@ function update(): void {
     if (returningToMenu) {
         returningToMenu = false;
         gameStarted = false;
+        Sound.stopSiren();
+        menuMusicPlaying = false; // startScreenLoop will auto-play since audio is unlocked
         startScreenLoop();
         return; // end this loop; startScreenLoop starts its own rAF
     }
@@ -738,6 +753,9 @@ function update(): void {
         updateGhostTunnelSpeeds();
         updateIdleTimer(Time.deltaTime);
         updateFruit();
+        updateAmbientSiren();
+    } else {
+        Sound.stopSiren();
     }
 
     if (gameState.pacmanDying) {
@@ -792,10 +810,14 @@ function start(): void {
     gameState.gameOver = false;
     AI.resetPrng();
 
+    Sound.stopMenuMusic();
+    menuMusicPlaying = false;
+
     Time.setup();
     initializeLevel();
     gameState.frozen = true;
     gameState.showReady = true;
+    Sound.introChimes();
     Time.addTimer(2.0, () => {
         gameState.frozen = false;
         gameState.showReady = false;
@@ -807,6 +829,8 @@ function start(): void {
 
 let gameStarted = false;
 let returningToMenu = false;
+let audioUnlocked = false;   // true after first user gesture (AudioContext created)
+let menuMusicPlaying = false; // true while menu music is actively playing
 
 let menuAnimTime = 0;
 let menuAnimLastTs = 0;
@@ -884,6 +908,13 @@ function drawMenuChase(t: number): void {
 
 function startScreenLoop(): void {
     if (gameStarted) return;
+
+    // Auto-play menu music after returning from a game (audio already unlocked)
+    if (audioUnlocked && !menuMusicPlaying) {
+        Sound.playMenuMusic();
+        menuMusicPlaying = true;
+    }
+
     const ctx = gameState.ctx;
     const w = gameState.canvas.width;
     ctx.fillStyle = 'black';
@@ -916,10 +947,10 @@ function startScreenLoop(): void {
     menuAnimTime += menuDt;
     drawMenuChase(menuAnimTime);
 
-    // Tap to start
+    // Tap to start (two-phase on first load)
     ctx.fillStyle = 'white';
     ctx.font = `bold ${Math.round(unit * 0.9)}px monospace`;
-    ctx.fillText('TAP TO START', w / 2, unit * 31);
+    ctx.fillText(audioUnlocked ? 'TAP TO START' : 'TAP TO PLAY MUSIC', w / 2, unit * 31);
 
     window.requestAnimationFrame(startScreenLoop);
 }
@@ -1081,17 +1112,30 @@ window.onload = function () {
         }, { passive: true });
     }
 
-    function launchGame(): void {
+    // Two-phase start:
+    //   Phase 1 (first gesture): unlock AudioContext + play menu music
+    //   Phase 2 (second gesture): stop music + start game
+    // After the first play-session, returning to menu auto-plays music, so
+    // subsequent sessions only need one tap/click to start the game.
+    function handleMenuInteraction(): void {
         if (gameStarted) return;
+        if (!audioUnlocked) {
+            // First ever gesture — unlock audio and start menu music
+            Sound.init();
+            audioUnlocked = true;
+            Sound.playMenuMusic();
+            menuMusicPlaying = true;
+            return;
+        }
+        // Audio already unlocked — start the game
         gameStarted = true;
-        Sound.init();
         start();
     }
 
-    document.onkeydown = (e: KeyboardEvent) => { launchGame(); Input.checkKeyDown(e); };
+    document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); Input.checkKeyDown(e); };
     document.onkeyup   = Input.checkKeyUp;
-    document.addEventListener('click', launchGame);
-    document.addEventListener('touchstart', launchGame as EventListener, { passive: false });
+    document.addEventListener('click', handleMenuInteraction);
+    document.addEventListener('touchstart', handleMenuInteraction as EventListener, { passive: false });
 
     startScreenLoop();
 };
