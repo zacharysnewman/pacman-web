@@ -9,7 +9,11 @@ import { Stats }  from './static/Stats';
 import type { HighScoreEntry } from './static/Stats';
 import { Sound }  from './static/Sound';
 import { GameObject } from './object/GameObject';
-import type { IGameObject, Direction } from './types';
+import type { IGameObject, Direction, PlayerState } from './types';
+import type { PlayerInput } from './input/PlayerInput';
+
+// Confirmed player slot: id + pre-constructed input instance
+interface ConfirmedSlot { id: number; input: PlayerInput }
 import { KeyboardPlayerInput } from './input/KeyboardPlayerInput';
 import { TouchPlayerInput    } from './input/TouchPlayerInput';
 import { GamepadPlayerInput  } from './input/GamepadPlayerInput';
@@ -58,11 +62,14 @@ function updateFruit(): void {
 function checkFruitCollision(): void {
     if (!gameState.fruitActive) return;
     const { x: fx, y: fy } = gameState.fruitActive;
-    if (Math.abs(gameState.pacman.x - fx) < unit && Math.abs(gameState.pacman.y - fy) < unit) {
-        const score = getFruitPoints(gameState.level);
-        Stats.addToScore(score);
-        gameState.scorePopups.push({ x: fx, y: fy, score, endTime: Time.timeSinceStart + 2.0 });
-        gameState.fruitActive = null;
+    for (const player of gameState.players) {
+        if (player.active && Math.abs(player.actor.x - fx) < unit && Math.abs(player.actor.y - fy) < unit) {
+            const score = getFruitPoints(gameState.level);
+            Stats.addToScore(score);
+            gameState.scorePopups.push({ x: fx, y: fy, score, endTime: Time.timeSinceStart + 2.0 });
+            gameState.fruitActive = null;
+            break;
+        }
     }
 }
 
@@ -313,7 +320,7 @@ function updateFrightenedMode(dt: number): void {
     if (gameState.frightenedRemaining <= 0) return;
     // Pause the countdown during ghost-eating freeze so those pauses don't
     // consume vulnerability time (matches original arcade behavior)
-    if (!gameState.pacmanFrozen) {
+    if (!gameState.players.some(p => p.frozen)) {
         gameState.frightenedRemaining -= dt;
     }
     if (gameState.frightenedRemaining > 0) return;
@@ -327,12 +334,14 @@ function updateFrightenedMode(dt: number): void {
         }
     }
     // Restore Pac-Man speed if not currently paused for a dot
-    if (gameState.pacman.moveSpeed !== 0) {
-        gameState.pacman.moveSpeed = getPacmanNormalSpeed(gameState.level);
+    for (const player of gameState.players) {
+        if (player.actor.moveSpeed !== 0) {
+            player.actor.moveSpeed = getPacmanNormalSpeed(gameState.level);
+        }
     }
 }
 
-function eatGhost(ghost: IGameObject): void {
+function eatGhost(ghost: IGameObject, player: PlayerState): void {
     const scores = [200, 400, 800, 1600];
     const score = scores[Math.min(gameState.ghostEatenChain, 3)];
     gameState.ghostEatenChain++;
@@ -346,10 +355,9 @@ function eatGhost(ghost: IGameObject): void {
         endTime: Time.timeSinceStart + 1.0,
     });
 
-    // Freeze Pac-Man briefly while score is shown; popup stays visible for 1s
-    // but the freeze is shorter so other frightened ghosts don't stop as long
-    gameState.pacmanFrozen = true;
-    Time.addTimer(0.5, () => { gameState.pacmanFrozen = false; });
+    // Freeze this player briefly while score is shown
+    player.frozen = true;
+    Time.addTimer(0.5, () => { player.frozen = false; });
 
     Sound.ghostEaten();
 
@@ -467,11 +475,13 @@ function makeGhostTileCentered(getGhost: () => IGameObject): (_x: number, _y: nu
 // ── Positions & Reset ─────────────────────────────────────────────────────────
 
 function resetPositions(afterDeath = false): void {
-    // Pac-Man
-    const pm = gameState.pacman;
+    // Players
     const pmPos = tileToPixel(START.pacman.x, START.pacman.y);
-    pm.x = pmPos.x; pm.y = pmPos.y;
-    pm.moveDir = 'left'; pm.moveSpeed = getPacmanNormalSpeed(gameState.level);
+    for (const player of gameState.players) {
+        player.actor.x = pmPos.x; player.actor.y = pmPos.y;
+        player.actor.moveDir = 'left'; player.actor.moveSpeed = getPacmanNormalSpeed(gameState.level);
+        player.frozen = false;
+    }
 
     // Blinky always starts outside
     const bl = gameState.blinky;
@@ -508,7 +518,6 @@ function resetPositions(afterDeath = false): void {
     gameState.frightenedRemaining = 0;
     gameState.ghostEatenChain = 0;
     gameState.scorePopups = [];
-    gameState.pacmanFrozen = false;
     gameState.fruitActive = null;
     // Cruise Elroy: suspend after death; clear for fresh level start
     gameState.elroyLevel = 0;
@@ -541,6 +550,8 @@ function levelClear(): void {
         gameState.fruitSpawned1 = false;
         gameState.fruitSpawned2 = false;
         gameState.fruitActive = null;
+        // Revive all players who have lives (shared pool still > 0) for next level
+        for (const p of gameState.players) { p.active = true; p.dying = false; }
         resetPositions(false);
         gameState.showReady = true;
         Time.addTimer(1.5, () => {
@@ -611,56 +622,67 @@ function showInitialsEntry(onDone: () => void): void {
 
 const DEATH_ANIM_DURATION = 2.0;
 
-function loseLife(): void {
-    if (gameState.frozen || gameState.gameOver) return;
+function triggerGameOver(): void {
+    gameState.gameOver = true;
     gameState.frozen = true;
-    gameState.pacmanDying = true;
-    gameState.pacmanDeathProgress = 0;
-    Sound.death();
-    Stats.lives--;
-
-    if (Stats.lives <= 0) {
-        gameState.gameOver = true;
-        Time.addTimer(DEATH_ANIM_DURATION, () => {
-            gameState.pacmanDying = false;
-            // After death anim, show game-over then enter initials / return to menu
-            Time.addTimer(1.5, () => {
-                if (Stats.qualifiesForTopTen(Stats.currentScore)) {
-                    showInitialsEntry(() => {
-                        Time.addTimer(1.5, () => { returningToMenu = true; });
-                    });
-                } else {
-                    Time.addTimer(2.0, () => { returningToMenu = true; });
-                }
+    Time.addTimer(1.5, () => {
+        if (Stats.qualifiesForTopTen(Stats.currentScore)) {
+            showInitialsEntry(() => {
+                Time.addTimer(1.5, () => { returningToMenu = true; });
             });
-        });
-        return;
-    }
+        } else {
+            Time.addTimer(2.0, () => { returningToMenu = true; });
+        }
+    });
+}
+
+function loseLife(player: PlayerState): void {
+    if (player.dying || !player.active || gameState.gameOver) return;
+    player.dying = true;
+    player.deathProgress = 0;
+    Sound.death();
 
     Time.addTimer(DEATH_ANIM_DURATION, () => {
-        gameState.pacmanDying = false;
-        resetPositions(true);
-        gameState.showReady = true;
-        Time.addTimer(1.5, () => {
-            gameState.frozen = false;
-            gameState.showReady = false;
-        });
+        player.dying = false;
+        player.active = false;
+
+        // If any other player is still active, game continues — this player sits out
+        if (gameState.players.some(p => p.active)) return;
+
+        // All players are down — consume a shared life
+        gameState.sharedLives--;
+        if (gameState.sharedLives <= 0) {
+            triggerGameOver();
+        } else {
+            // Revive all players and play READY!
+            for (const p of gameState.players) { p.active = true; p.dying = false; }
+            resetPositions(true);
+            gameState.showReady = true;
+            gameState.frozen = true;
+            Time.addTimer(1.5, () => {
+                gameState.frozen = false;
+                gameState.showReady = false;
+            });
+        }
     });
 }
 
 // ── Collision Detection ───────────────────────────────────────────────────────
 
 function checkCollisions(): void {
-    const px = gameState.pacman.roundedX();
-    const py = gameState.pacman.roundedY();
-    for (const ghost of gameState.ghosts) {
-        if (ghost.roundedX() === px && ghost.roundedY() === py) {
-            if (ghost.ghostMode === 'frightened') {
-                eatGhost(ghost);
-            } else if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
-                       ghost.ghostMode !== 'exiting') {
-                loseLife();
-                return;
+    for (const player of gameState.players) {
+        if (!player.active || player.dying || player.frozen) continue;
+        const px = player.actor.roundedX();
+        const py = player.actor.roundedY();
+        for (const ghost of gameState.ghosts) {
+            if (ghost.roundedX() === px && ghost.roundedY() === py) {
+                if (ghost.ghostMode === 'frightened') {
+                    eatGhost(ghost, player);
+                } else if (ghost.ghostMode !== 'eyes' && ghost.ghostMode !== 'house' &&
+                           ghost.ghostMode !== 'exiting') {
+                    loseLife(player);
+                    break; // stop checking ghosts for this player; continue to next player
+                }
             }
         }
     }
@@ -668,40 +690,55 @@ function checkCollisions(): void {
 
 // ── Pac-Man Tile Callbacks ────────────────────────────────────────────────────
 
-function pacmanOnTileChanged(x: number, y: number): void {
-    const curTile = Levels.levelDynamic[y][x];
+function makePacmanOnTileChanged(player: PlayerState): (x: number, y: number) => void {
+    return (x: number, y: number) => {
+        const curTile = Levels.levelDynamic[y][x];
 
-    // Small dot
-    if (curTile === 3) {
-        Levels.levelDynamic[y][x] = 5;
-        Stats.addToScore(10);
-        gameState.pacman.moveSpeed = 0.0;
-        Time.addTimer(0.01666666667, () => { gameState.pacman.moveSpeed = getCurrentPacmanSpeed(); });
-        incrementDotCounters();
-        Sound.dot();
-        if (countRemainingDots() === 0) levelClear();
-    }
+        // Small dot
+        if (curTile === 3) {
+            Levels.levelDynamic[y][x] = 5;
+            Stats.addToScore(10);
+            player.actor.moveSpeed = 0.0;
+            Time.addTimer(0.01666666667, () => { player.actor.moveSpeed = getCurrentPacmanSpeed(); });
+            incrementDotCounters();
+            Sound.dot();
+            if (countRemainingDots() === 0) levelClear();
+        }
 
-    // Power pellet — triggers frightened mode
-    if (curTile === 4) {
-        Levels.levelDynamic[y][x] = 5;
-        Stats.addToScore(50);
-        gameState.pacman.moveSpeed = 0.0;
-        Time.addTimer(0.05, () => { gameState.pacman.moveSpeed = getCurrentPacmanSpeed(); });
-        incrementDotCounters();
-        Sound.energizer();
-        activateFrightened();
-        if (countRemainingDots() === 0) levelClear();
-    }
+        // Power pellet — triggers frightened mode
+        if (curTile === 4) {
+            Levels.levelDynamic[y][x] = 5;
+            Stats.addToScore(50);
+            player.actor.moveSpeed = 0.0;
+            Time.addTimer(0.05, () => { player.actor.moveSpeed = getCurrentPacmanSpeed(); });
+            incrementDotCounters();
+            Sound.energizer();
+            activateFrightened();
+            if (countRemainingDots() === 0) levelClear();
+        }
+    };
 }
-
-function pacmanOnTileCentered(_x: number, _y: number): void {}
 
 function ghostOnTileChanged(_x: number, _y: number): void {}
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
-function initializeLevel(): void {
+function createPlayer(id: number, startTile: { x: number; y: number }, input: PlayerInput): PlayerState {
+    let playerState!: PlayerState;
+    const actor = new GameObject(
+        'yellow',
+        startTile.x, startTile.y,
+        0.667,
+        () => Move.pacman(playerState),
+        (obj) => Draw.pacman(obj, playerState),
+        (x, y) => makePacmanOnTileChanged(playerState)(x, y),
+        (_x, _y) => {},
+    );
+    playerState = { id, actor, input, frozen: false, dying: false, deathProgress: 0, active: true };
+    return playerState;
+}
+
+function initializeLevel(slots: ConfirmedSlot[]): void {
     Levels.levelSetup   = Levels.level1;
     Levels.levelDynamic = Levels.level1.map(row => [...row]);
 
@@ -709,13 +746,16 @@ function initializeLevel(): void {
     gameState.personalDotCounters = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
     gameState.modeChangesInHouse  = { 'hotpink': 0, 'cyan': 0, 'orange': 0 };
 
-    gameState.pacman = new GameObject('yellow',  START.pacman.x, START.pacman.y, 0.667, Move.pacman, Draw.pacman, pacmanOnTileChanged, pacmanOnTileCentered);
+    // Create all players from confirmed slots
+    gameState.players = slots.map(s => createPlayer(s.id, START.pacman, s.input));
+
     gameState.blinky = new GameObject('red',     START.blinky.x, START.blinky.y, 0.667, Move.blinky, Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.blinky));
     gameState.inky   = new GameObject('cyan',    START.inky.x,   START.inky.y,   0.667, Move.inky,   Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.inky));
     gameState.pinky  = new GameObject('hotpink', START.pinky.x,  START.pinky.y,  0.667, Move.pinky,  Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.pinky));
     gameState.clyde  = new GameObject('orange',  START.clyde.x,  START.clyde.y,  0.667, Move.clyde,  Draw.ghost,  ghostOnTileChanged, makeGhostTileCentered(() => gameState.clyde));
 
-    gameState.gameObjects = [gameState.pacman, gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
+    // Player actors drawn first (under ghosts)
+    gameState.gameObjects = [...gameState.players.map(p => p.actor), gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
     gameState.ghosts      = [gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
 
     // resetPositions sets all positions, modes, and triggers initial house releases
@@ -744,14 +784,17 @@ function update(): void {
         gameStarted = false;
         Sound.stopSiren();
         menuMusicPlaying = false; // startScreenLoop will auto-play since audio is unlocked
-        p1Input?.destroy();
-        p1Input = null;
+        for (const p of gameState.players) p.input.destroy();
+        gameState.players = [];
+        document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
         startScreenLoop();
         return; // end this loop; startScreenLoop starts its own rAF
     }
 
     if (!gameState.frozen && !gameState.gameOver) {
-        p1Input?.update(gameState.pacman);
+        for (const p of gameState.players) {
+            if (p.active && !p.dying) p.input.update(p.actor);
+        }
         updateScatterChaseMode(Time.deltaTime);
         updateFrightenedMode(Time.deltaTime);
         updateElroy();
@@ -763,10 +806,10 @@ function update(): void {
         Sound.stopSiren();
     }
 
-    if (gameState.pacmanDying) {
-        gameState.pacmanDeathProgress = Math.min(
-            gameState.pacmanDeathProgress + Time.deltaTime / DEATH_ANIM_DURATION, 1.0,
-        );
+    for (const p of gameState.players) {
+        if (p.dying) {
+            p.deathProgress = Math.min(p.deathProgress + Time.deltaTime / DEATH_ANIM_DURATION, 1.0);
+        }
     }
 
     Draw.level();
@@ -793,9 +836,10 @@ function update(): void {
     window.requestAnimationFrame(update);
 }
 
-function start(): void {
+function start(slots: ConfirmedSlot[]): void {
     // Full game state reset for a fresh play
     Stats.reset();
+    gameState.sharedLives = 3;
     gameState.level = 1;
     gameState.scatterChaseIndex = 0;
     gameState.scatterChaseElapsed = 0;
@@ -815,18 +859,12 @@ function start(): void {
     gameState.gameOver = false;
     AI.resetPrng();
 
-    p1Input?.destroy();
-    p1Input = new CompositePlayerInput([
-        new KeyboardPlayerInput(),
-        new TouchPlayerInput(),
-        new GamepadPlayerInput(0),
-    ]);
-
     Sound.stopMenuMusic();
     menuMusicPlaying = false;
 
+    gameStarted = true;
     Time.setup();
-    initializeLevel();
+    initializeLevel(slots);
     gameState.frozen = true;
     gameState.showReady = true;
     Sound.introChimes();
@@ -838,8 +876,6 @@ function start(): void {
 }
 
 // ── Start Screen ──────────────────────────────────────────────────────────────
-
-let p1Input: CompositePlayerInput | null = null;
 
 let gameStarted = false;
 let returningToMenu = false;
@@ -918,6 +954,91 @@ function drawMenuChase(t: number): void {
             drawMenuPacman(ctx, pacX, y, pacSize2, 'left', mouthOpen);
         }
     }
+}
+
+// Two-phase start:
+//   Phase 1 (first gesture): unlock AudioContext + play menu music
+//   Phase 2 (second gesture): go to player select screen
+// After the first play-session, returning to menu auto-plays music, so
+// subsequent sessions only need one tap/click to reach player select.
+function handleMenuInteraction(): void {
+    if (gameStarted) return;
+    if (!audioUnlocked) {
+        // First ever gesture — unlock audio and start menu music
+        Sound.init();
+        audioUnlocked = true;
+        Sound.playMenuMusic();
+        menuMusicPlaying = true;
+        return;
+    }
+    // Audio already unlocked — go to player select
+    gameStarted = true; // stops startScreenLoop from continuing its rAF
+    playerSelectLoop();
+}
+
+// ── Player Select Screen ──────────────────────────────────────────────────────
+
+function playerSelectLoop(): void {
+    type SlotDisplay = { id: number; active: boolean; inputLabel: string };
+
+    function buildSlots(): SlotDisplay[] {
+        const connected = GamepadPlayerInput.connectedIndices();
+        return [1, 2, 3, 4].map(id => {
+            const hasGamepad = connected.includes(id - 1);
+            const active = id === 1 || hasGamepad;
+            const label = id === 1
+                ? (hasGamepad ? 'KEYS + PAD 1' : 'KEYBOARD')
+                : (hasGamepad ? `PAD ${id}` : 'NO PAD');
+            return { id, active, inputLabel: label };
+        });
+    }
+
+    let slots = buildSlots();
+    let selectRunning = true;
+
+    // Update slot display when controllers connect/disconnect
+    GamepadPlayerInput.listenForConnectionChanges(() => {
+        if (selectRunning) slots = buildSlots();
+    });
+
+    function confirmAndStart(): void {
+        if (!selectRunning) return;
+        selectRunning = false;
+
+        // Build confirmed slots with freshly constructed input instances
+        const confirmedSlots: ConfirmedSlot[] = slots
+            .filter(s => s.active)
+            .map(s => {
+                if (s.id === 1) {
+                    return {
+                        id: 1,
+                        input: new CompositePlayerInput([
+                            new KeyboardPlayerInput(),
+                            new TouchPlayerInput(),
+                            new GamepadPlayerInput(0),
+                        ]) as PlayerInput,
+                    };
+                }
+                return { id: s.id, input: new GamepadPlayerInput(s.id - 1) as PlayerInput };
+            });
+
+        start(confirmedSlots);
+    }
+
+    function selectFrame(): void {
+        if (!selectRunning) return;
+        Draw.playerSelectScreen(slots);
+        window.requestAnimationFrame(selectFrame);
+    }
+
+    // Override key handler for this screen; click/touch use { once: true }
+    document.onkeydown = (e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') confirmAndStart();
+    };
+    document.addEventListener('click',     confirmAndStart, { once: true });
+    document.addEventListener('touchend',  confirmAndStart as EventListener, { once: true, passive: true } as EventListenerOptions);
+
+    selectFrame();
 }
 
 function startScreenLoop(): void {
@@ -1085,29 +1206,9 @@ window.onload = function () {
         }, { passive: true });
     }
 
-    // Two-phase start:
-    //   Phase 1 (first gesture): unlock AudioContext + play menu music
-    //   Phase 2 (second gesture): stop music + start game
-    // After the first play-session, returning to menu auto-plays music, so
-    // subsequent sessions only need one tap/click to start the game.
-    function handleMenuInteraction(): void {
-        if (gameStarted) return;
-        if (!audioUnlocked) {
-            // First ever gesture — unlock audio and start menu music
-            Sound.init();
-            audioUnlocked = true;
-            Sound.playMenuMusic();
-            menuMusicPlaying = true;
-            return;
-        }
-        // Audio already unlocked — start the game
-        gameStarted = true;
-        start();
-    }
-
     document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
     document.addEventListener('click', handleMenuInteraction);
-    document.addEventListener('touchstart', handleMenuInteraction as EventListener, { passive: false });
+    document.addEventListener('touchend', (e: Event) => { e.preventDefault(); handleMenuInteraction(); }, { passive: false } as EventListenerOptions);
 
     startScreenLoop();
 };
