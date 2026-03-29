@@ -585,10 +585,12 @@ function showInitialsEntry(onDone: () => void): void {
     (input as HTMLInputElement & { autocomplete: string }).autocomplete = 'off';
     input.setAttribute('autocorrect', 'off');
     input.setAttribute('autocapitalize', 'characters');
-    // font-size ≥16px prevents iOS Safari from zooming when focused
+    // font-size ≥16px prevents iOS Safari from zooming when focused.
+    // Covers the full overlay so any tap anywhere opens the keyboard.
+    // z-index kept below the DONE button (which gets z-index:1).
     input.style.cssText = [
         'position:absolute;inset:0;width:100%;height:100%',
-        'opacity:0.01;font-size:16px;cursor:text',
+        'opacity:0.01;font-size:16px;cursor:text;z-index:0',
         'background:transparent;border:none;outline:none;color:transparent;caret-color:transparent',
     ].join(';');
 
@@ -611,8 +613,7 @@ function showInitialsEntry(onDone: () => void): void {
         slotsWrap.appendChild(slot);
         slotEls.push(slot);
     }
-    // Overlay input on top of slots — direct tap = iOS keyboard, no programmatic focus needed
-    slotsWrap.appendChild(input);
+    // Input is appended to the overlay (full-screen) instead of slotsWrap
 
     function updateSlots(): void {
         const val = input.value;
@@ -647,13 +648,16 @@ function showInitialsEntry(onDone: () => void): void {
         updateSlots();
     };
     input.onkeydown = (e) => { if (e.key === 'Enter') submit(); };
+    btn.style.position = 'relative';
+    btn.style.zIndex   = '1'; // sit above the full-screen input
     btn.onclick = (e) => { e.stopPropagation(); submit(); };
 
     overlay.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
     overlay.addEventListener('touchend',   (e) => e.stopPropagation(), { passive: true });
     overlay.addEventListener('click',      (e) => e.stopPropagation());
 
-    overlay.append(title, scoreEl, slotsWrap, btn);
+    // input is position:absolute inset:0 — contained by the fixed overlay (full screen)
+    overlay.append(title, scoreEl, slotsWrap, btn, input);
     document.body.appendChild(overlay);
     // Best-effort autofocus for non-iOS browsers; iOS requires a direct tap on the input
     setTimeout(() => input.focus(), 80);
