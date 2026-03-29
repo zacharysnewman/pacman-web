@@ -50,8 +50,8 @@ export class GameObject implements IGameObject {
     }
 
     update(): void {
-        this.checkTileUpdates();
         this.moveFunction();
+        this.checkTileUpdates();
         this.drawFunction(this);
     }
 

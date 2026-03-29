@@ -620,6 +620,14 @@ function showInitialsEntry(onDone: () => void): void {
     hint.textContent = 'TAP ANYWHERE TO ENTER INITIALS';
     hint.style.cssText = 'font-size:20px;color:#666;letter-spacing:2px;text-align:center';
 
+    const btn = document.createElement('button');
+    btn.textContent = 'DONE';
+    btn.style.cssText = [
+        'font-family:monospace;font-size:48px;font-weight:bold',
+        'background:#222;color:white;border:2px solid #888',
+        'border-radius:8px;padding:24px 80px;cursor:default;letter-spacing:2px',
+    ].join(';');
+
     function updateSlots(): void {
         const val = input.value;
         const done = val.length >= 3;
@@ -637,14 +645,6 @@ function showInitialsEntry(onDone: () => void): void {
         hint.style.visibility = val.length === 0 ? 'visible' : 'hidden';
     }
     updateSlots();
-
-    const btn = document.createElement('button');
-    btn.textContent = 'DONE';
-    btn.style.cssText = [
-        'font-family:monospace;font-size:48px;font-weight:bold',
-        'background:#222;color:white;border:2px solid #888',
-        'border-radius:8px;padding:24px 80px;cursor:default;letter-spacing:2px',
-    ].join(';');
 
     function submit(): void {
         const raw = input.value.replace(/[^A-Za-z]/g, '');
@@ -1268,7 +1268,7 @@ window.onload = function () {
                 display: flex; align-items: center; justify-content: space-between;
                 margin-top: 12px; font-size: 16px; color: #ff8888; display: none;
             }
-            #dbg-clear-errors {
+            #dbg-clear-errors, #dbg-copy-errors {
                 font-size: 13px; color: #aaa; background: none;
                 border: 1px solid #555; border-radius: 3px;
                 padding: 2px 6px; cursor: pointer; margin-top: 0; width: auto; min-height: 0;
@@ -1285,7 +1285,7 @@ window.onload = function () {
                 <button id="dbg-pause">⏸ Pause</button>
                 <button id="dbg-initials">✏ Initials Screen</button>
                 <button id="dbg-reset-scores">🗑 Reset High Scores</button>
-                <div id="dbg-error-log-header">⚠ Errors <button id="dbg-clear-errors">Clear</button></div>
+                <div id="dbg-error-log-header">⚠ Errors <span style="display:flex;gap:6px"><button id="dbg-copy-errors">Copy</button><button id="dbg-clear-errors">Clear</button></span></div>
                 <div id="dbg-error-log"></div>
             </div>
         `;
@@ -1347,6 +1347,14 @@ window.onload = function () {
             errorLog.appendChild(line);
             errorLog.scrollTop = errorLog.scrollHeight;
         }
+        const copyBtn = document.getElementById('dbg-copy-errors') as HTMLButtonElement;
+        copyBtn.onclick = () => {
+            const text = Array.from(errorLog.children).map(el => el.textContent ?? '').join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+            });
+        };
         (document.getElementById('dbg-clear-errors') as HTMLButtonElement).onclick = () => {
             errorLog.innerHTML = '';
             errorLog.style.display    = 'none';
