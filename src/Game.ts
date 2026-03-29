@@ -679,13 +679,15 @@ const DEATH_ANIM_DURATION = 2.0;
 function triggerGameOver(): void {
     gameState.gameOver = true;
     gameState.frozen = true;
-    Time.addTimer(1.5, () => {
+    // Use native setTimeout so the transition is independent of the game-loop
+    // timer system — any error in a pending Time.addTimer callback won't block it.
+    setTimeout(() => {
         if (Stats.qualifiesForTopTen(Stats.currentScore)) {
             showInitialsEntry(() => { returningToMenu = true; });
         } else {
-            Time.addTimer(2.0, () => { returningToMenu = true; });
+            setTimeout(() => { returningToMenu = true; }, 2000);
         }
-    });
+    }, 1500);
 }
 
 function loseLife(player: PlayerState): void {
@@ -832,7 +834,7 @@ function updateAmbientSiren(): void {
 // ── Main Update Loop ──────────────────────────────────────────────────────────
 
 function update(): void {
-    Time.update();
+    try { Time.update(); } catch (e) { console.error('Time.update error:', e); }
 
     if (returningToMenu) {
         returningToMenu = false;
