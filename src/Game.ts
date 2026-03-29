@@ -626,9 +626,7 @@ function triggerGameOver(): void {
     gameState.frozen = true;
     Time.addTimer(1.5, () => {
         if (Stats.qualifiesForTopTen(Stats.currentScore)) {
-            showInitialsEntry(() => {
-                Time.addTimer(1.5, () => { returningToMenu = true; });
-            });
+            showInitialsEntry(() => { returningToMenu = true; });
         } else {
             Time.addTimer(2.0, () => { returningToMenu = true; });
         }
