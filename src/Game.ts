@@ -1052,13 +1052,9 @@ function handleMenuInteraction(): void {
         menuMusicPlaying = true;
         return;
     }
-    // Audio already unlocked — go to player select (or skip straight to solo if no controllers)
+    // Audio already unlocked — always show player select (handles 0 controllers gracefully)
     gameStarted = true; // stops startScreenLoop from continuing its rAF
-    if (GamepadPlayerInput.connectedIndices().length === 0) {
-        start([{ id: 1, input: new CompositePlayerInput([new KeyboardPlayerInput(), new TouchPlayerInput()]) as PlayerInput }]);
-    } else {
-        playerSelectLoop();
-    }
+    playerSelectLoop();
 }
 
 // ── Player Select Screen ──────────────────────────────────────────────────────
@@ -1080,7 +1076,7 @@ function playerSelectLoop(): void {
     let playerCount = maxAvailableCount();
 
     function adjustCount(delta: number): void {
-        playerCount = Math.max(1, Math.min(playerCount + delta, 4));
+        playerCount = Math.max(1, Math.min(playerCount + delta, maxAvailableCount()));
     }
 
     function toggleMode(): void {

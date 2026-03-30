@@ -173,28 +173,40 @@ export class Draw {
             ctx.roundRect(bx, by, pw, ph, size * 0.08);
             ctx.fill();
         } else if (id === 3) {
-            // Miss Pac-Man — purple bow always at 12 o'clock (top of head)
-            const bowY = y - size * 1.15;
-            const bowHalfW = size * 0.3;
-            const bowH = size * 0.22;
+            // Miss Pac-Man — purple bow on top of head, rotates with moveDir.
+            // topDx/topDy: direction from pac-center toward bow (left/right keeps world-up).
+            // spreadDx/spreadDy: perpendicular (90° CCW from top), lobes fan along this axis.
+            let topDx = 0, topDy = -1;
+            if      (moveDir === 'up')   { topDx =  1; topDy = 0; }
+            else if (moveDir === 'down') { topDx = -1; topDy = 0; }
+            const spreadDx = -topDy;
+            const spreadDy =  topDx;
+            const bowHalfSpread = size * 0.3;
+            const bowDepth      = size * 0.22;
+            const bcx = x + topDx * size * 1.15;
+            const bcy = y + topDy * size * 1.15;
             ctx.fillStyle = '#b44fff';
-            // Left lobe
+            // Lobe in –spread direction
             ctx.beginPath();
-            ctx.moveTo(x, bowY);
-            ctx.lineTo(x - bowHalfW, bowY - bowH);
-            ctx.lineTo(x - bowHalfW, bowY + bowH);
+            ctx.moveTo(bcx, bcy);
+            ctx.lineTo(bcx - spreadDx * bowHalfSpread + topDx * bowDepth,
+                       bcy - spreadDy * bowHalfSpread + topDy * bowDepth);
+            ctx.lineTo(bcx - spreadDx * bowHalfSpread - topDx * bowDepth,
+                       bcy - spreadDy * bowHalfSpread - topDy * bowDepth);
             ctx.closePath();
             ctx.fill();
-            // Right lobe
+            // Lobe in +spread direction
             ctx.beginPath();
-            ctx.moveTo(x, bowY);
-            ctx.lineTo(x + bowHalfW, bowY - bowH);
-            ctx.lineTo(x + bowHalfW, bowY + bowH);
+            ctx.moveTo(bcx, bcy);
+            ctx.lineTo(bcx + spreadDx * bowHalfSpread + topDx * bowDepth,
+                       bcy + spreadDy * bowHalfSpread + topDy * bowDepth);
+            ctx.lineTo(bcx + spreadDx * bowHalfSpread - topDx * bowDepth,
+                       bcy + spreadDy * bowHalfSpread - topDy * bowDepth);
             ctx.closePath();
             ctx.fill();
             // Center knot
             ctx.beginPath();
-            ctx.arc(x, bowY, size * 0.09, 0, Math.PI * 2);
+            ctx.arc(bcx, bcy, size * 0.09, 0, Math.PI * 2);
             ctx.fill();
         } else if (id === 4) {
             // Tic Tac Man — white pill on the back, perpendicular to travel
@@ -625,12 +637,12 @@ export class Draw {
             }
         }
 
-        // Up/down navigation arrows flanking the selected row
+        // Up/down navigation arrows — only shown when there are counts to navigate to
         const selY = rowYs[playerCount - 1];
-        ctx.fillStyle = playerCount > 1 ? '#aaa' : '#333';
         ctx.font = `${Math.round(unit * 0.7)}px monospace`;
+        ctx.fillStyle = playerCount > 1 ? '#aaa' : '#333';
         ctx.fillText('\u25B2', cx, selY - unit * 1.3);
-        ctx.fillStyle = playerCount < 4 ? '#aaa' : '#333';
+        ctx.fillStyle = playerCount < maxAvail ? '#aaa' : '#333';
         ctx.fillText('\u25BC', cx, selY + unit * 1.3);
 
         // Navigation hints
