@@ -1316,6 +1316,26 @@ window.onload = function () {
                 border: 1px solid #555; border-radius: 3px;
                 padding: 3px 6px; cursor: pointer; margin-top: 0; width: auto; min-height: 0;
             }
+            #debug-panel input[type=range] {
+                -webkit-appearance: none; appearance: none;
+                width: 100%; height: 54px; background: transparent;
+                cursor: pointer; padding: 0; margin: 0;
+            }
+            #debug-panel input[type=range]::-webkit-slider-runnable-track {
+                height: 10px; border-radius: 5px; background: #555;
+            }
+            #debug-panel input[type=range]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                width: 48px; height: 48px; border-radius: 50%;
+                background: yellow; margin-top: -19px;
+            }
+            #debug-panel input[type=range]::-moz-range-track {
+                height: 10px; border-radius: 5px; background: #555;
+            }
+            #debug-panel input[type=range]::-moz-range-thumb {
+                width: 48px; height: 48px; border-radius: 50%;
+                background: yellow; border: none;
+            }
             </style>
             <h3 id="dbg-header">⚙ DEBUG <span id="dbg-toggle">▲</span></h3>
             <div id="dbg-content">
@@ -1325,7 +1345,7 @@ window.onload = function () {
                 <label><input type="checkbox" id="dbg-redzones"> Red zones</label>
                 <label><input type="checkbox" id="dbg-ghostpaths"> Ghost paths</label>
                 <label><input type="checkbox" id="dbg-tilepicker"> Tile picker</label>
-                <label style="flex-direction:column;align-items:flex-start;gap:4px">
+                <label style="flex-direction:column;align-items:flex-start;gap:10px">
                     <span id="dbg-extra-players-label">Extra players: 0</span>
                     <input type="range" id="dbg-extra-players" min="0" max="3" value="0"
                         style="width:100%;accent-color:yellow;cursor:pointer">
