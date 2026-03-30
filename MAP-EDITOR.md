@@ -448,12 +448,12 @@ On game exit (returningToMenu flag) → back to editorLoop()
 - [x] Update `Draw.ts` to read red zone tiles from `currentLevel`
 - Verify game runs identically with refactored data (regression test: play through, check enemy AI, tunnels, scoring)
 
-### Phase 2 — Basic Editor
-- `?editor=true` entry point in `window.onload`
-- Editor rAF loop (`EditorLoop.ts`)
-- Tile paint/erase with mouse and touch
-- Grid overlay, hover highlight
-- Undo/redo (snapshot-based)
+### Phase 2 — Basic Editor ✅
+- [x] `?editor=true` entry point in `window.onload`
+- [x] Editor rAF loop (`EditorLoop.ts`)
+- [x] Tile paint/erase with mouse and touch
+- [x] Grid overlay, hover highlight
+- [x] Undo/redo (snapshot-based)
 
 ### Phase 3 — Spawn & Special Tiles
 - Spawn point placement tools (click to reposition)
