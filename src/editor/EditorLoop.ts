@@ -52,17 +52,17 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): void
         case 'player_spawn':
             state.level.playerStart = { x, y };
             break;
-        case 'enemy_blinky':
-            state.level.enemyStarts.blinky = { x, y };
+        case 'enemy_red':
+            state.level.enemyStarts.red = { x, y };
             break;
-        case 'enemy_inky':
-            state.level.enemyStarts.inky = { x, y };
+        case 'enemy_cyan':
+            state.level.enemyStarts.cyan = { x, y };
             break;
-        case 'enemy_pinky':
-            state.level.enemyStarts.pinky = { x, y };
+        case 'enemy_hotpink':
+            state.level.enemyStarts.hotpink = { x, y };
             break;
-        case 'enemy_clyde':
-            state.level.enemyStarts.clyde = { x, y };
+        case 'enemy_orange':
+            state.level.enemyStarts.orange = { x, y };
             break;
         case 'fruit_spawn':
             state.level.fruitSpawn = { x, y };
@@ -102,10 +102,10 @@ function applyToolDrag(state: EditorState, cell: { x: number; y: number }): void
             break;
         }
         case 'player_spawn':   state.level.playerStart = { x, y }; break;
-        case 'enemy_blinky':   state.level.enemyStarts.blinky = { x, y }; break;
-        case 'enemy_inky':     state.level.enemyStarts.inky   = { x, y }; break;
-        case 'enemy_pinky':    state.level.enemyStarts.pinky  = { x, y }; break;
-        case 'enemy_clyde':    state.level.enemyStarts.clyde  = { x, y }; break;
+        case 'enemy_red':   state.level.enemyStarts.red = { x, y }; break;
+        case 'enemy_cyan':     state.level.enemyStarts.cyan   = { x, y }; break;
+        case 'enemy_hotpink':    state.level.enemyStarts.hotpink  = { x, y }; break;
+        case 'enemy_orange':    state.level.enemyStarts.orange  = { x, y }; break;
         case 'fruit_spawn':    state.level.fruitSpawn        = { x, y }; break;
         case 'enemy_house_door': state.level.enemyHouseDoor  = { x, y }; break;
         case 'tunnel_config':  state.level.tunnelRow = y; break;
@@ -178,10 +178,10 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
 
     // Spawn markers
     drawSpawnMarker(ctx, lv.playerStart,         'yellow',  'P');
-    drawSpawnMarker(ctx, lv.enemyStarts.blinky,  '#FF3333', 'R');
-    drawSpawnMarker(ctx, lv.enemyStarts.inky,    '#00FFFF', 'C');
-    drawSpawnMarker(ctx, lv.enemyStarts.pinky,   '#FFB8FF', 'H');
-    drawSpawnMarker(ctx, lv.enemyStarts.clyde,   '#FFB852', 'O');
+    drawSpawnMarker(ctx, lv.enemyStarts.red,  '#FF3333', 'R');
+    drawSpawnMarker(ctx, lv.enemyStarts.cyan,    '#00FFFF', 'C');
+    drawSpawnMarker(ctx, lv.enemyStarts.hotpink,   '#FFB8FF', 'H');
+    drawSpawnMarker(ctx, lv.enemyStarts.orange,   '#FFB852', 'O');
     drawSpawnMarker(ctx, lv.fruitSpawn,          '#FF6600', 'F');
 
     // Grid lines
@@ -242,10 +242,10 @@ const PALETTE: Array<{ value: TileValue; label: string; bg: string }> = [
 
 const SPAWN_BTNS: Array<{ tool: EditorTool; label: string; color: string }> = [
     { tool: 'player_spawn',     label: 'P Player', color: 'yellow'    },
-    { tool: 'enemy_blinky',     label: 'R Red',    color: '#FF3333'   },
-    { tool: 'enemy_inky',       label: 'C Cyan',   color: '#00FFFF'   },
-    { tool: 'enemy_pinky',      label: 'H Pink',   color: '#FFB8FF'   },
-    { tool: 'enemy_clyde',      label: 'O Orange', color: '#FFB852'   },
+    { tool: 'enemy_red',     label: 'R Red',    color: '#FF3333'   },
+    { tool: 'enemy_cyan',       label: 'C Cyan',   color: '#00FFFF'   },
+    { tool: 'enemy_hotpink',      label: 'H Pink',   color: '#FFB8FF'   },
+    { tool: 'enemy_orange',      label: 'O Orange', color: '#FFB852'   },
     { tool: 'fruit_spawn',      label: 'F Fruit',  color: '#FF6600'   },
     { tool: 'enemy_house_door', label: '🚪 Door',  color: 'lightpink' },
 ];

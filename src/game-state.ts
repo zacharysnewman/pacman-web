@@ -6,10 +6,10 @@ export const gameState = {
     ctx: null as unknown as CanvasRenderingContext2D,
     players: [] as PlayerState[],
     sharedLives: 0,
-    blinky: null as unknown as IGameObject,
-    inky: null as unknown as IGameObject,
-    pinky: null as unknown as IGameObject,
-    clyde: null as unknown as IGameObject,
+    red:     null as unknown as IGameObject,
+    cyan:    null as unknown as IGameObject,
+    hotpink: null as unknown as IGameObject,
+    orange:  null as unknown as IGameObject,
     gameObjects: [] as IGameObject[],
     enemies: [] as IGameObject[],
     frozen: false,
@@ -36,7 +36,7 @@ export const gameState = {
     fruitHistory: [] as number[],
     // Cruise Elroy state (Phase 8)
     elroyLevel: 0 as 0 | 1 | 2,   // 0 = inactive, 1 = Elroy 1, 2 = Elroy 2
-    elroySuspended: false,          // true after Player death; clears when Clyde exits house
+    elroySuspended: false,          // true after Player death; clears when Orange exits house
     // Ready state (Phase 10)
     showReady: false,
     // Debug overlay (enabled via ?dev=true)
@@ -45,9 +45,9 @@ export const gameState = {
     debugShowTargetingViz: false,
     debugShowModes: false,
     debugEnemyTargets: {} as Record<string, { x: number; y: number } | null>,
-    debugInkyPivot: null as { x: number; y: number } | null,
-    debugPinkyAhead: null as { x: number; y: number } | null,
-    debugClydeDistToPlayer: 0,
+    debugCyanPivot: null as { x: number; y: number } | null,
+    debugHotpinkAhead: null as { x: number; y: number } | null,
+    debugOrangeDistToPlayer: 0,
     debugShowRedZones: false,
     debugShowEnemyPaths: false,
     debugTilePicker: false,

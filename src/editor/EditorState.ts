@@ -5,10 +5,10 @@ export type EditorTool =
     | 'erase'
     | 'fill'
     | 'player_spawn'
-    | 'enemy_blinky'
-    | 'enemy_inky'
-    | 'enemy_pinky'
-    | 'enemy_clyde'
+    | 'enemy_red'
+    | 'enemy_cyan'
+    | 'enemy_hotpink'
+    | 'enemy_orange'
     | 'fruit_spawn'
     | 'tunnel_config'
     | 'red_zone';
@@ -30,19 +30,19 @@ export function deepCopyLevel(level: LevelData): LevelData {
         tiles: level.tiles.map(row => [...row] as TileValue[]),
         playerStart:    { ...level.playerStart },
         enemyStarts: {
-            blinky: { ...level.enemyStarts.blinky },
-            inky:   { ...level.enemyStarts.inky },
-            pinky:  { ...level.enemyStarts.pinky },
-            clyde:  { ...level.enemyStarts.clyde },
+            red:     { ...level.enemyStarts.red },
+            cyan:    { ...level.enemyStarts.cyan },
+            hotpink: { ...level.enemyStarts.hotpink },
+            orange:  { ...level.enemyStarts.orange },
         },
         fruitSpawn:     { ...level.fruitSpawn },
         enemyHouseDoor: { ...level.enemyHouseDoor },
         redZoneTiles:   level.redZoneTiles.map(t => ({ ...t })),
         scatterTargets: {
-            blinky: { ...level.scatterTargets.blinky },
-            inky:   { ...level.scatterTargets.inky },
-            pinky:  { ...level.scatterTargets.pinky },
-            clyde:  { ...level.scatterTargets.clyde },
+            red:     { ...level.scatterTargets.red },
+            cyan:    { ...level.scatterTargets.cyan },
+            hotpink: { ...level.scatterTargets.hotpink },
+            orange:  { ...level.scatterTargets.orange },
         },
     };
 }

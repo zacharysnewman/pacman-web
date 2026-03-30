@@ -73,12 +73,12 @@ export class AI {
         } else if (mode === 'scatter') {
             const st = gameState.currentLevel.scatterTargets;
             const cornerByColor: Record<string, { x: number; y: number }> = {
-                'red':     st.blinky,
-                'hotpink': st.pinky,
-                'cyan':    st.inky,
-                'orange':  st.clyde,
+                'red':     st.red,
+                'hotpink': st.hotpink,
+                'cyan':    st.cyan,
+                'orange':  st.orange,
             };
-            // Cruise Elroy: Blinky overrides scatter to chase nearest player
+            // Cruise Elroy: red overrides scatter to chase nearest player
             if (obj.color === 'red' && gameState.elroyLevel > 0) {
                 const target = AI.nearestPlayer(obj);
                 if (target) {
@@ -99,22 +99,22 @@ export class AI {
             const player = AI.nearestPlayer(obj);
             if (!player) return; // no active players — skip
             if (obj.color === 'hotpink') {
-                // Pinky: 4 tiles ahead of nearest player (with up overflow bug)
+                // hotpink: 4 tiles ahead of nearest player (with up overflow bug)
                 const ahead = AI.tilesAheadOf(player, 4);
                 targetX = ahead.x;
                 targetY = ahead.y;
-                if (gameState.debugEnabled) gameState.debugPinkyAhead = ahead;
+                if (gameState.debugEnabled) gameState.debugHotpinkAhead = ahead;
             } else if (obj.color === 'cyan') {
-                // Inky: doubled vector from Blinky through 2 tiles ahead of nearest player
+                // cyan: doubled vector from red through 2 tiles ahead of nearest player
                 const intermediate = AI.tilesAheadOf(player, 2);
-                const blinky = gameState.blinky;
-                targetX = 2 * intermediate.x - blinky.roundedX();
-                targetY = 2 * intermediate.y - blinky.roundedY();
-                if (gameState.debugEnabled) gameState.debugInkyPivot = intermediate;
+                const red = gameState.red;
+                targetX = 2 * intermediate.x - red.roundedX();
+                targetY = 2 * intermediate.y - red.roundedY();
+                if (gameState.debugEnabled) gameState.debugCyanPivot = intermediate;
             } else if (obj.color === 'orange') {
-                // Clyde: target nearest player if ≥8 tiles away, else retreat to corner
+                // orange: target nearest player if ≥8 tiles away, else retreat to corner
                 const dist = getDistance(obj.roundedX(), obj.roundedY(), player.roundedX(), player.roundedY());
-                if (gameState.debugEnabled) gameState.debugClydeDistToPlayer = dist;
+                if (gameState.debugEnabled) gameState.debugOrangeDistToPlayer = dist;
                 if (dist >= 8) {
                     targetX = player.roundedX();
                     targetY = player.roundedY();
@@ -123,7 +123,7 @@ export class AI {
                     targetY = 34;
                 }
             } else {
-                // Blinky: direct pursuit of nearest player's tile
+                // red: direct pursuit of nearest player's tile
                 targetX = player.roundedX();
                 targetY = player.roundedY();
             }

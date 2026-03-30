@@ -101,7 +101,7 @@ function getEnemyTunnelSpeed(level: number): number {
 
 // ── Cruise Elroy (Phase 8) ────────────────────────────────────────────────────
 
-// Dot count at which Blinky enters Elroy 1 / Elroy 2 for the current level
+// Dot count at which red enters Elroy 1 / Elroy 2 for the current level
 function getElroyThreshold1(level: number): number {
     if (level === 1) return 20;
     if (level === 2) return 30;
@@ -180,7 +180,7 @@ function updateEnemyTunnelSpeeds(): void {
         } else if (enemy.enemyMode === 'frightened') {
             enemy.moveSpeed = getEnemyFrightSpeed(gameState.level);
         } else if (enemy.color === 'red' && gameState.elroyLevel > 0) {
-            // Cruise Elroy: Blinky gets a speed boost in chase/scatter mode
+            // Cruise Elroy: red gets a speed boost in chase/scatter mode
             enemy.moveSpeed = gameState.elroyLevel === 2
                 ? getElroySpeed2(gameState.level)
                 : getElroySpeed1(gameState.level);
@@ -364,14 +364,14 @@ function eatEnemy(enemy: IGameObject, player: PlayerState): void {
 function releaseEnemy(enemy: IGameObject): void {
     enemy.enemyMode = 'exiting';
     enemy.moveSpeed = getEnemyNormalSpeed(gameState.level);
-    // Cruise Elroy resumes once Clyde begins exiting the enemy house
+    // Cruise Elroy resumes once orange begins exiting the enemy house
     if (enemy.color === 'orange' && gameState.elroySuspended) {
         gameState.elroySuspended = false;
     }
 }
 
 function getNextHouseEnemy(): IGameObject | null {
-    for (const enemy of [gameState.pinky, gameState.inky, gameState.clyde]) {
+    for (const enemy of [gameState.hotpink, gameState.cyan, gameState.orange]) {
         if (enemy.enemyMode === 'house') return enemy;
     }
     return null;
@@ -380,7 +380,7 @@ function getNextHouseEnemy(): IGameObject | null {
 // Release all house enemies whose personal counter has reached their limit (cascading)
 function checkAndReleaseHouseEnemies(): void {
     if (gameState.useGlobalDotCounter) return; // global counter handles its own releases
-    for (const enemy of [gameState.pinky, gameState.inky, gameState.clyde]) {
+    for (const enemy of [gameState.hotpink, gameState.cyan, gameState.orange]) {
         if (enemy.enemyMode !== 'house') continue;
         const limit = getPersonalLimit(enemy.color, gameState.level);
         if (gameState.personalDotCounters[enemy.color] >= limit) {
@@ -409,20 +409,20 @@ function incrementDotCounters(): void {
     if (gameState.useGlobalDotCounter) {
         gameState.globalDotCounter++;
         const gc = gameState.globalDotCounter;
-        if (gc >= GLOBAL_THRESHOLDS['hotpink'] && gameState.pinky.enemyMode === 'house') {
-            releaseEnemy(gameState.pinky);
+        if (gc >= GLOBAL_THRESHOLDS['hotpink'] && gameState.hotpink.enemyMode === 'house') {
+            releaseEnemy(gameState.hotpink);
         }
-        if (gc >= GLOBAL_THRESHOLDS['cyan'] && gameState.inky.enemyMode === 'house') {
-            releaseEnemy(gameState.inky);
+        if (gc >= GLOBAL_THRESHOLDS['cyan'] && gameState.cyan.enemyMode === 'house') {
+            releaseEnemy(gameState.cyan);
         }
-        if (gc >= GLOBAL_THRESHOLDS['orange'] && gameState.clyde.enemyMode === 'house') {
-            releaseEnemy(gameState.clyde);
-            gameState.useGlobalDotCounter = false; // deactivate (Clyde was inside at 32)
+        if (gc >= GLOBAL_THRESHOLDS['orange'] && gameState.orange.enemyMode === 'house') {
+            releaseEnemy(gameState.orange);
+            gameState.useGlobalDotCounter = false; // deactivate (orange was inside at 32)
         }
-        // If Clyde was already outside at 32, the counter keeps running (stuck-enemy exploit)
+        // If orange was already outside at 32, the counter keeps running (stuck-enemy exploit)
     } else {
         // Increment only the active enemy's personal counter (first one still in house)
-        for (const enemy of [gameState.pinky, gameState.inky, gameState.clyde]) {
+        for (const enemy of [gameState.hotpink, gameState.cyan, gameState.orange]) {
             if (enemy.enemyMode === 'house') {
                 gameState.personalDotCounters[enemy.color]++;
                 break;
@@ -433,7 +433,7 @@ function incrementDotCounters(): void {
 }
 
 function updateIdleTimer(dt: number): void {
-    const hasHouseEnemy = [gameState.pinky, gameState.inky, gameState.clyde]
+    const hasHouseEnemy = [gameState.hotpink, gameState.cyan, gameState.orange]
         .some(g => g.enemyMode === 'house');
     if (!hasHouseEnemy) { gameState.idleTimer = 0; return; }
 
@@ -477,18 +477,18 @@ function resetPositions(afterDeath = false): void {
         player.frozen = false;
     }
 
-    // Blinky always starts outside
-    const bl = gameState.blinky;
-    const blPos = tileToPixel(lv.enemyStarts.blinky.x, lv.enemyStarts.blinky.y);
+    // Red always starts outside
+    const bl = gameState.red;
+    const blPos = tileToPixel(lv.enemyStarts.red.x, lv.enemyStarts.red.y);
     bl.x = blPos.x; bl.y = blPos.y;
     bl.moveDir = 'left'; bl.moveSpeed = getEnemyNormalSpeed(gameState.level);
     bl.enemyMode = 'scatter';
 
-    // House ghosts reset to their starting positions inside
+    // House enemies reset to their starting positions inside
     const houseActors: Array<{ enemy: IGameObject; start: { x: number; y: number }; dir: Direction }> = [
-        { enemy: gameState.pinky, start: lv.enemyStarts.pinky, dir: 'down' }, // center starts down
-        { enemy: gameState.inky,  start: lv.enemyStarts.inky,  dir: 'up'   }, // left starts up
-        { enemy: gameState.clyde, start: lv.enemyStarts.clyde, dir: 'up'   }, // right starts up
+        { enemy: gameState.hotpink, start: lv.enemyStarts.hotpink, dir: 'down' }, // center starts down
+        { enemy: gameState.cyan,    start: lv.enemyStarts.cyan,    dir: 'up'   }, // left starts up
+        { enemy: gameState.orange,  start: lv.enemyStarts.orange,  dir: 'up'   }, // right starts up
     ];
     for (const { enemy, start, dir } of houseActors) {
         const pos = tileToPixel(start.x, start.y);
@@ -519,7 +519,7 @@ function resetPositions(afterDeath = false): void {
     resetScatterChaseTimer();
     AI.resetPrng();
 
-    // Immediately release any enemy whose counter is already at its limit (e.g. Pinky=0)
+    // Immediately release any enemy whose counter is already at its limit (e.g. hotpink=0)
     checkAndReleaseHouseEnemies();
 }
 
@@ -819,14 +819,14 @@ function initializeLevel(slots: ConfirmedSlot[]): void {
     gameState.players = slots.map(s => createPlayer(s.id, lv.playerStart, s.input));
 
     const es = lv.enemyStarts;
-    gameState.blinky = new GameObject('red',     es.blinky.x, es.blinky.y, 0.667, Move.blinky, Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.blinky));
-    gameState.inky   = new GameObject('cyan',    es.inky.x,   es.inky.y,   0.667, Move.inky,   Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.inky));
-    gameState.pinky  = new GameObject('hotpink', es.pinky.x,  es.pinky.y,  0.667, Move.pinky,  Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.pinky));
-    gameState.clyde  = new GameObject('orange',  es.clyde.x,  es.clyde.y,  0.667, Move.clyde,  Draw.enemy,  enemyOnTileChanged, makeEnemyTileCentered(() => gameState.clyde));
+    gameState.red     = new GameObject('red',     es.red.x,     es.red.y,     0.667, Move.red,     Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.red));
+    gameState.cyan    = new GameObject('cyan',    es.cyan.x,    es.cyan.y,    0.667, Move.cyan,    Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.cyan));
+    gameState.hotpink = new GameObject('hotpink', es.hotpink.x, es.hotpink.y, 0.667, Move.hotpink, Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.hotpink));
+    gameState.orange  = new GameObject('orange',  es.orange.x,  es.orange.y,  0.667, Move.orange,  Draw.enemy, enemyOnTileChanged, makeEnemyTileCentered(() => gameState.orange));
 
     // Player actors drawn first (under enemies)
-    gameState.gameObjects = [...gameState.players.map(p => p.actor), gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
-    gameState.enemies      = [gameState.blinky, gameState.inky, gameState.pinky, gameState.clyde];
+    gameState.gameObjects = [...gameState.players.map(p => p.actor), gameState.red, gameState.cyan, gameState.hotpink, gameState.orange];
+    gameState.enemies      = [gameState.red, gameState.cyan, gameState.hotpink, gameState.orange];
 
     // resetPositions sets all positions, modes, and triggers initial house releases
     resetPositions(false);
