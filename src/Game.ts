@@ -3,6 +3,7 @@ import { gameState } from './game-state';
 import { Time }  from './static/Time';
 import { Draw }  from './static/Draw';
 import { Move }  from './static/Move';
+import { startEditorMode } from './editor/EditorLoop';
 import { AI }    from './static/AI';
 import { Levels } from './static/Levels';
 import { Stats }  from './static/Stats';
@@ -1267,7 +1268,9 @@ window.onload = function () {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    if (new URLSearchParams(window.location.search).get('dev') === 'true') {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get('dev') === 'true') {
         gameState.debugEnabled = true;
         const panel = document.createElement('div');
         panel.id = 'debug-panel';
@@ -1493,6 +1496,11 @@ window.onload = function () {
             const t = e.changedTouches[0];
             pickTile(t.clientX, t.clientY);
         }, { passive: true });
+    }
+
+    if (params.get('editor') === 'true') {
+        startEditorMode();
+        return;
     }
 
     // Mark controllerActive as soon as any gamepad connects (covers mid-session plug-in)
