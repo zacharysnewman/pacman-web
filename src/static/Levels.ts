@@ -49,10 +49,10 @@ export class Levels {
         tiles: Levels.level1,
         playerStart:  { x: 13.5, y: 26 },
         enemyStarts: {
-            blinky: { x: 13.5, y: 14 },
-            inky:   { x: 12,   y: 17 },
-            pinky:  { x: 13.5, y: 17 },
-            clyde:  { x: 15,   y: 17 },
+            redEnemy:     { x: 13.5, y: 14 },
+            cyanEnemy: { x: 12,   y: 17 },
+            hotpinkEnemy: { x: 13.5, y: 17 },
+            orangeEnemy: { x: 15,   y: 17 },
         },
         fruitSpawn:       { x: 13, y: 20 },
         tunnelRow:        17,
@@ -66,10 +66,10 @@ export class Levels {
         ],
         enemyHouseDoor: { x: 14, y: 15 },
         scatterTargets: {
-            blinky: { x: 26, y: 0  },
-            inky:   { x: 27, y: 34 },
-            pinky:  { x: 2,  y: 0  },
-            clyde:  { x: 0,  y: 34 },
+            redEnemy:     { x: 26, y: 0  },
+            cyanEnemy: { x: 27, y: 34 },
+            hotpinkEnemy: { x: 2,  y: 0  },
+            orangeEnemy: { x: 0,  y: 34 },
         },
     };
 }

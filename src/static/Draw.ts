@@ -967,11 +967,11 @@ export class Draw {
             const tp = tc(t.x, t.y);
 
             if (enemy.color === 'cyan' && mode === 'chase') {
-                // Inky: dashed line Blinky→pivot, solid arrow pivot→target
-                const pivot = gameState.debugInkyPivot;
+                // cyan: dashed line red→pivot, solid arrow pivot→target
+                const pivot = gameState.debugCyanPivot;
                 if (pivot) {
                     const pp = tc(pivot.x, pivot.y);
-                    const bl = gameState.blinky;
+                    const bl = gameState.redEnemy;
                     ctx.save();
                     ctx.globalAlpha = 0.55;
                     ctx.strokeStyle = 'white';
@@ -995,7 +995,7 @@ export class Draw {
                     Draw.debugArrow(ctx, pp.x, pp.y, tp.x, tp.y, enemy.color);
                 }
             } else if (enemy.color === 'orange' && mode === 'chase') {
-                // Clyde: 8-tile radius circle + arrow to target
+                // orange: 8-tile radius circle + arrow to target
                 const radiusPx = 8 * unit;
                 ctx.save();
                 ctx.globalAlpha = 0.4;
@@ -1009,8 +1009,8 @@ export class Draw {
                 ctx.restore();
                 Draw.debugArrow(ctx, enemy.x, enemy.y, tp.x, tp.y, enemy.color);
             } else if (enemy.color === 'hotpink' && mode === 'chase') {
-                // Pinky: dashed arrow Player→4-ahead, then arrow 4-ahead→target
-                const ahead = gameState.debugPinkyAhead;
+                // hotpink: dashed arrow Player→4-ahead, then arrow 4-ahead→target
+                const ahead = gameState.debugHotpinkAhead;
                 if (ahead) {
                     const ap = tc(ahead.x, ahead.y);
                     const pm = gameState.players[0]?.actor;
@@ -1030,7 +1030,7 @@ export class Draw {
                 }
                 Draw.debugArrow(ctx, enemy.x, enemy.y, tp.x, tp.y, enemy.color);
             } else {
-                // Blinky (chase/scatter) and eyes: simple arrow enemy→target
+                // red (chase/scatter) and eyes: simple arrow enemy→target
                 Draw.debugArrow(ctx, enemy.x, enemy.y, tp.x, tp.y, enemy.color);
             }
         }

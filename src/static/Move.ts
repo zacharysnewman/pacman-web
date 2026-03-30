@@ -21,19 +21,19 @@ export class Move {
         }
     }
 
-    static blinky(): void {
+    static redEnemy(): void {
         if (gameState.frozen) return;
-        if (gameState.players.some(p => p.frozen) && gameState.blinky.enemyMode !== 'eyes' && gameState.blinky.enemyMode !== 'entering') return;
-        const g = gameState.blinky;
+        if (gameState.players.some(p => p.frozen) && gameState.redEnemy.enemyMode !== 'eyes' && gameState.redEnemy.enemyMode !== 'entering') return;
+        const g = gameState.redEnemy;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
         if (g.enemyMode === 'exiting') { Move.enemyExit(g); return; }
         Move.moveObject(g);
     }
 
-    static inky(): void {
+    static cyanEnemy(): void {
         if (gameState.frozen) return;
-        const g = gameState.inky;
+        const g = gameState.cyanEnemy;
         if (gameState.players.some(p => p.frozen) && g.enemyMode !== 'eyes' && g.enemyMode !== 'entering') return;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
@@ -41,9 +41,9 @@ export class Move {
         Move.moveObject(g);
     }
 
-    static pinky(): void {
+    static hotpinkEnemy(): void {
         if (gameState.frozen) return;
-        const g = gameState.pinky;
+        const g = gameState.hotpinkEnemy;
         if (gameState.players.some(p => p.frozen) && g.enemyMode !== 'eyes' && g.enemyMode !== 'entering') return;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
@@ -51,9 +51,9 @@ export class Move {
         Move.moveObject(g);
     }
 
-    static clyde(): void {
+    static orangeEnemy(): void {
         if (gameState.frozen) return;
-        const g = gameState.clyde;
+        const g = gameState.orangeEnemy;
         if (gameState.players.some(p => p.frozen) && g.enemyMode !== 'eyes' && g.enemyMode !== 'entering') return;
         if (g.enemyMode === 'house') { Move.enemyBounce(g); return; }
         if (g.enemyMode === 'entering') { Move.enemyEnter(g); return; }
@@ -85,12 +85,12 @@ export class Move {
 
         
         const spawnXByColor: Record<string, number> = {
-            'red':     13.5 * unit + unit / 2, // Blinky → center (lives outside normally)
-            'hotpink': 13.5 * unit + unit / 2, // Pinky  → center
-            'cyan':    12   * unit + unit / 2, // Inky   → left
-            'orange':  15   * unit + unit / 2, // Clyde  → right
+            'red':     13.5 * unit + unit / 2, // red    → center (lives outside normally)
+            'hotpink': 13.5 * unit + unit / 2, // hotpink → center
+            'cyan':    12   * unit + unit / 2, // cyan   → left
+            'orange':  15   * unit + unit / 2, // orange → right
         };
-        // Fallback to Pinky/Blinky tile if color unrecognised
+        // Fallback to hotpink/red tile if color unrecognised
         const spawnX = spawnXByColor[enemy.color] ?? enterX;
 
         // Step 1: move straight down to row 17 (bypasses the door tile via direct Y movement)
