@@ -1,4 +1,4 @@
-# Dot Muncher Web
+# Dot Maze Web
 
 A web-based dot-maze game written in TypeScript. The maze, characters, and all visuals are drawn entirely with Canvas 2D stroke/fill calls — no sprites or images. Gameplay faithfully reproduces classic arcade dot-maze mechanics, including authentic enemy AI, speed tables, scatter/chase timing, the enemy house release system, Cruise Elroy, and frightened mode.
 
