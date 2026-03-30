@@ -1064,57 +1064,59 @@ function handleMenuInteraction(): void {
 // ── Player Select Screen ──────────────────────────────────────────────────────
 
 function playerSelectLoop(): void {
-    type SlotDisplay = { id: number; active: boolean; inputLabel: string };
-
-    let controllerMode = false; // when true, gamepads shift: pad[0]=P2, pad[1]=P3, pad[2]=P4
+    // PAD SHIFT (default): P1=keyboard, P2=pad0, P3=pad1, P4=pad2
+    // KEYBOARD:            P1=keyboard+pad0, P2=pad1, P3=pad2, P4=pad3
+    let controllerMode = true;
 
     function connectedCount(): number { return GamepadPlayerInput.connectedIndices().length; }
-    function canToggle(): boolean { return connectedCount() < 4; }
-    function activeMode(): boolean { return controllerMode && canToggle(); }
 
-    function buildSlots(): SlotDisplay[] {
-        const connected = GamepadPlayerInput.connectedIndices();
-        const mode = activeMode();
-        return [1, 2, 3, 4].map(id => {
-            if (id === 1) {
-                const hasGamepad = !mode && connected.includes(0);
-                return { id, active: true, inputLabel: hasGamepad ? 'KEYS + PAD 1' : 'KEYS / TOUCH' };
-            }
-            const padIndex = mode ? id - 2 : id - 1;
-            const hasGamepad = padIndex >= 0 && connected.includes(padIndex);
-            return { id, active: hasGamepad, inputLabel: hasGamepad ? `PAD ${padIndex + 1}` : 'NO PAD' };
-        });
+    function maxAvailableCount(): number {
+        const c = connectedCount();
+        return controllerMode
+            ? Math.min(1 + c, 4)               // kbd + up to 3 pads
+            : Math.min(Math.max(c, 1), 4);      // kbd always, P2+ need pads starting at index 1
     }
 
-    let slots = buildSlots();
-    let selectRunning = true;
+    let playerCount = maxAvailableCount();
 
-    // Update slot display when controllers connect/disconnect
-    GamepadPlayerInput.listenForConnectionChanges(() => {
-        if (selectRunning) slots = buildSlots();
-    });
+    function adjustCount(delta: number): void {
+        playerCount = Math.max(1, Math.min(playerCount + delta, 4));
+    }
 
     function toggleMode(): void {
-        if (!canToggle()) return;
         controllerMode = !controllerMode;
-        slots = buildSlots();
+        playerCount = maxAvailableCount();
     }
+
+    let selectRunning = true;
+
+    // Auto-select highest available count when controllers connect/disconnect
+    GamepadPlayerInput.listenForConnectionChanges(() => {
+        if (!selectRunning) return;
+        playerCount = maxAvailableCount();
+    });
 
     function confirmAndStart(): void {
         if (!selectRunning) return;
-        selectRunning = false;
-        const mode = activeMode();
-        const confirmedSlots: ConfirmedSlot[] = slots
-            .filter(s => s.active)
-            .map(s => {
-                if (s.id === 1) {
-                    const inputs: PlayerInput[] = [new KeyboardPlayerInput(), new TouchPlayerInput()];
-                    if (!mode) inputs.push(new GamepadPlayerInput(0));
-                    return { id: 1, input: new CompositePlayerInput(inputs) as PlayerInput };
+        const connected = GamepadPlayerInput.connectedIndices();
+        const confirmedSlots: ConfirmedSlot[] = [];
+
+        for (let id = 1; id <= playerCount; id++) {
+            if (id === 1) {
+                const inputs: PlayerInput[] = [new KeyboardPlayerInput(), new TouchPlayerInput()];
+                if (!controllerMode && connected.includes(0)) inputs.push(new GamepadPlayerInput(0));
+                confirmedSlots.push({ id: 1, input: new CompositePlayerInput(inputs) as PlayerInput });
+            } else {
+                // PAD SHIFT: P2=pad0, P3=pad1 ... KEYBOARD: P2=pad1, P3=pad2 ...
+                const padIdx = controllerMode ? id - 2 : id - 1;
+                if (padIdx >= 0 && connected.includes(padIdx)) {
+                    confirmedSlots.push({ id, input: new GamepadPlayerInput(padIdx) as PlayerInput });
                 }
-                const padIndex = mode ? s.id - 2 : s.id - 1;
-                return { id: s.id, input: new GamepadPlayerInput(padIndex) as PlayerInput };
-            });
+            }
+        }
+
+        if (confirmedSlots.length === 0) return;
+        selectRunning = false;
         start(confirmedSlots);
     }
 
@@ -1124,38 +1126,54 @@ function playerSelectLoop(): void {
     function selectFrame(): void {
         if (!selectRunning) return;
 
-        // Poll gamepads
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
         for (let gi = 0; gi < gamepads.length; gi++) {
             const gp = gamepads[gi];
             const prev = prevBtns[gi] ?? [];
             if (!gp) { prevBtns[gi] = []; continue; }
-            const aPressed  = gp.buttons[0]?.pressed  ?? false;
-            const dLeft     = gp.buttons[14]?.pressed ?? false;
-            const dRight    = gp.buttons[15]?.pressed ?? false;
-            if (aPressed && !prev[0])  confirmAndStart();
+            const aPressed = gp.buttons[0]?.pressed  ?? false;
+            const dLeft    = gp.buttons[14]?.pressed ?? false;
+            const dRight   = gp.buttons[15]?.pressed ?? false;
+            const dUp      = gp.buttons[12]?.pressed ?? false;
+            const dDown    = gp.buttons[13]?.pressed ?? false;
+            if (aPressed  && !prev[0])  confirmAndStart();
             if ((dLeft && !prev[14]) || (dRight && !prev[15])) toggleMode();
+            if (dUp   && !prev[12]) adjustCount(-1);
+            if (dDown && !prev[13]) adjustCount(+1);
             prevBtns[gi] = Array.from(gp.buttons, b => b.pressed);
         }
 
-        Draw.playerSelectScreen(slots, controllerMode, canToggle());
+        Draw.playerSelectScreen(playerCount, controllerMode, connectedCount());
         window.requestAnimationFrame(selectFrame);
     }
 
-    // Touch swipe left/right to toggle mode
+    // Touch: swipe L/R → mode, swipe U/D → count, tap → confirm
     let touchStartX = 0;
-    const onTouchStart = (e: TouchEvent) => { touchStartX = e.touches[0].clientX; };
+    let touchStartY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    };
     const onTouchEnd = (e: TouchEvent) => {
         const dx = e.changedTouches[0].clientX - touchStartX;
-        if (Math.abs(dx) > 40) { e.preventDefault(); toggleMode(); }
-        else { e.preventDefault(); confirmAndStart(); }
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+            e.preventDefault(); toggleMode();
+        } else if (Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx)) {
+            e.preventDefault(); adjustCount(dy > 0 ? 1 : -1);
+        } else {
+            e.preventDefault(); confirmAndStart();
+        }
     };
     document.addEventListener('touchstart', onTouchStart as EventListener, { passive: true });
     document.addEventListener('touchend',   onTouchEnd as EventListener,   { passive: false } as EventListenerOptions);
 
     document.onkeydown = (e: KeyboardEvent) => {
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') toggleMode();
-        else if (e.key === 'Enter' || e.key === ' ') confirmAndStart();
+        if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
+        if      (e.key === 'ArrowLeft' || e.key === 'ArrowRight') toggleMode();
+        else if (e.key === 'ArrowUp')                              adjustCount(-1);
+        else if (e.key === 'ArrowDown')                            adjustCount(+1);
+        else if (e.key === 'Enter' || e.key === ' ')               confirmAndStart();
     };
     document.addEventListener('click', confirmAndStart, { once: true });
 

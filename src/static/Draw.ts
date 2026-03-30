@@ -553,10 +553,11 @@ export class Draw {
         ctx.fillText(`SCORE  ${Stats.currentScore}`, cx, cy + unit * 1.2);
     }
 
-    static playerSelectScreen(slots: { id: number; active: boolean; inputLabel: string }[], controllerMode = false, canToggle = false): void {
+    static playerSelectScreen(playerCount: number, controllerMode: boolean, connectedCount: number): void {
         const ctx = gameState.ctx;
         const w = gameState.canvas.width;
         const h = gameState.canvas.height;
+        const cx = w / 2;
 
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, w, h);
@@ -566,72 +567,91 @@ export class Draw {
         // Title
         ctx.fillStyle = 'yellow';
         ctx.font = `bold ${Math.round(unit * 1.3)}px monospace`;
-        ctx.fillText('SELECT PLAYERS', w / 2, unit * 3);
+        ctx.fillText('SELECT PLAYERS', cx, unit * 2.5);
 
-        // Slot cards — 4 columns
-        const margin = unit * 0.5;
-        const cardW = (w - margin * 5) / 4;
-        const cardH = unit * 9;
-        const cardY = unit * 5;
+        // Mode toggle
+        const modeLabel = controllerMode ? 'PAD SHIFT' : 'KEYBOARD';
+        ctx.fillStyle = '#aaa';
+        ctx.font = `bold ${Math.round(unit * 0.9)}px monospace`;
+        ctx.fillText(`\u25C4  ${modeLabel}  \u25BA`, cx, unit * 5);
+        ctx.fillStyle = '#555';
+        ctx.font = `${Math.round(unit * 0.48)}px monospace`;
+        ctx.fillText('\u2190 \u2192 or swipe left/right to change mode', cx, unit * 6.3);
 
-        for (let i = 0; i < 4; i++) {
-            const slot = slots[i];
-            const cx = margin + (cardW + margin) * i + cardW / 2;
+        // Max players achievable with current mode + connected controllers:
+        // PAD SHIFT: P1=keyboard, P2=pad0 ... so kbd + N pads = N+1 players
+        // KEYBOARD:  P1=keyboard+pad0, P2=pad1 ... pad0 is used by P1, so extra players = N-1
+        const maxAvail = controllerMode
+            ? Math.min(1 + connectedCount, 4)
+            : Math.min(Math.max(connectedCount, 1), 4);
 
-            // Card border
-            ctx.strokeStyle = slot.active ? 'yellow' : '#333';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(cx - cardW / 2, cardY, cardW, cardH);
+        // Player count rows (1–4 pac-man icons each)
+        const rowYs = [unit * 9, unit * 11.5, unit * 14, unit * 16.5];
+        const iconSpacing = unit * 1.7;
 
-            // Player label
-            ctx.fillStyle = slot.active ? 'yellow' : '#555';
-            ctx.font = `bold ${Math.round(unit * 0.75)}px monospace`;
-            ctx.fillText(`P${slot.id}`, cx, cardY + unit * 1.2);
+        for (let count = 1; count <= 4; count++) {
+            const isSelected = count === playerCount;
+            const isAvail    = count <= maxAvail;
+            const y          = rowYs[count - 1];
+            const iconR      = isSelected ? unit * 0.5 : unit * 0.42;
+            const totalSpan  = (count - 1) * iconSpacing;
 
-            // Mini Pac-Man icon
-            const iconR = unit * 0.45;
-            ctx.fillStyle = slot.active ? 'yellow' : '#333';
-            ctx.beginPath();
-            ctx.moveTo(cx, cardY + unit * 3.2);
-            ctx.arc(cx, cardY + unit * 3.2, iconR, 0.2 * Math.PI, 1.8 * Math.PI, false);
-            ctx.closePath();
-            ctx.fill();
+            // Row highlight
+            if (isSelected) {
+                ctx.fillStyle = 'rgba(255,255,0,0.07)';
+                ctx.fillRect(0, y - unit, w, unit * 2);
+            }
 
-            // Input label
-            ctx.fillStyle = slot.active ? '#ccc' : '#444';
-            ctx.font = `${Math.round(unit * 0.5)}px monospace`;
-            ctx.fillText(slot.inputLabel, cx, cardY + unit * 5.2);
+            // Pac-Man icons
+            for (let i = 0; i < count; i++) {
+                const ix = cx - totalSpan / 2 + i * iconSpacing;
+                // P1 (i=0) always has keyboard; others need a specific pad index
+                // PAD SHIFT: player i+1 needs pad[i-1]  →  padNeeded = i-1
+                // KEYBOARD:  player i+1 needs pad[i]    →  padNeeded = i
+                const padNeeded = controllerMode ? i - 1 : i;
+                const hasInput  = i === 0 || padNeeded < connectedCount;
 
-            // Status
-            ctx.font = `bold ${Math.round(unit * 0.65)}px monospace`;
-            if (slot.active) {
-                ctx.fillStyle = '#00ff88';
-                ctx.fillText('READY', cx, cardY + unit * 7.0);
-            } else {
-                ctx.fillStyle = '#333';
-                ctx.fillText('NO PAD', cx, cardY + unit * 7.0);
+                ctx.fillStyle = isSelected
+                    ? (hasInput ? 'yellow' : '#664400')
+                    : isAvail
+                        ? (hasInput ? '#777' : '#333')
+                        : '#222';
+
+                ctx.beginPath();
+                ctx.moveTo(ix, y);
+                ctx.arc(ix, y, iconR, 0.2 * Math.PI, 1.8 * Math.PI, false);
+                ctx.closePath();
+                ctx.fill();
             }
         }
 
-        // Mode toggle row
-        if (canToggle) {
-            const modeLabel = controllerMode ? 'PAD SHIFT' : 'STANDARD';
-            ctx.font = `bold ${Math.round(unit * 0.75)}px monospace`;
-            ctx.fillStyle = '#aaa';
-            ctx.fillText(`◄  ${modeLabel}  ►`, w / 2, unit * 16);
-            ctx.font = `${Math.round(unit * 0.5)}px monospace`;
-            ctx.fillStyle = '#555';
-            ctx.fillText('← → or swipe to switch', w / 2, unit * 17.2);
-        }
+        // Up/down navigation arrows flanking the selected row
+        const selY = rowYs[playerCount - 1];
+        ctx.fillStyle = playerCount > 1 ? '#aaa' : '#333';
+        ctx.font = `${Math.round(unit * 0.7)}px monospace`;
+        ctx.fillText('\u25B2', cx, selY - unit * 1.3);
+        ctx.fillStyle = playerCount < 4 ? '#aaa' : '#333';
+        ctx.fillText('\u25BC', cx, selY + unit * 1.3);
 
-        // Instructions
+        // Navigation hints
+        ctx.fillStyle = '#555';
+        ctx.font = `${Math.round(unit * 0.48)}px monospace`;
+        ctx.fillText('\u2191 \u2193 or swipe up/down to change count', cx, unit * 18.3);
+
+        // Start instruction
         ctx.fillStyle = 'white';
-        ctx.font = `bold ${Math.round(unit * 0.85)}px monospace`;
-        ctx.fillText('TAP OR PRESS START', w / 2, unit * 18.5);
+        ctx.font = `bold ${Math.round(unit * 0.9)}px monospace`;
+        ctx.fillText('TAP OR PRESS START', cx, unit * 20.2);
 
-        ctx.fillStyle = '#888';
-        ctx.font = `${Math.round(unit * 0.6)}px monospace`;
-        ctx.fillText('Connect controllers for more players', w / 2, unit * 19.8);
+        // Control legend
+        ctx.fillStyle = '#666';
+        ctx.font = `${Math.round(unit * 0.48)}px monospace`;
+        ctx.fillText('CONTROLLER: A   KEYBOARD: Enter   TOUCH: Tap', cx, unit * 21.5);
+
+        if (connectedCount === 0) {
+            ctx.fillStyle = '#444';
+            ctx.fillText('Connect controllers for more players', cx, unit * 22.8);
+        }
     }
 
     static scorePopups(): void {
