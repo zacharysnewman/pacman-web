@@ -719,12 +719,10 @@ function loseLife(player: PlayerState): void {
         const anyoneAlive = gameState.players.some(p => p.active);
         if (anyoneAlive) {
             // Other players still alive — dead player sits out until next level
-        } else if (gameState.sharedLives === 0) {
-            triggerGameOver();
-        } else {
-            // Spend an extra life and revive everyone
+        } else if (gameState.sharedLives > 0) {
+            // All players down but lives remain — spend one and revive everyone
             gameState.sharedLives--;
-            // All players down but lives remain — revive everyone and play READY!
+            // Revive everyone and play READY!
             for (const p of gameState.players) { p.active = true; p.dying = false; }
             resetPositions(true);
             gameState.showReady = true;
@@ -734,6 +732,9 @@ function loseLife(player: PlayerState): void {
                 gameState.showReady = false;
                 staggerLateStarters();
             });
+        } else {
+            // All players dead with no lives remaining
+            triggerGameOver();
         }
     });
 }
