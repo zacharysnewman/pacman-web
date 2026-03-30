@@ -1042,7 +1042,9 @@ function drawMenuChase(t: number): void {
 //   Phase 2 (second gesture): go to player select screen
 // After the first play-session, returning to menu auto-plays music, so
 // subsequent sessions only need one tap/click to reach player select.
-function handleMenuInteraction(): void {
+// hasGamepad: caller passes true when it already knows a gamepad triggered this
+// (avoids re-checking connectedIndices() which can be stale right after returning to menu)
+function handleMenuInteraction(hasGamepad = false): void {
     if (gameStarted) return;
     if (!audioUnlocked) {
         // First ever gesture — unlock audio and start menu music
@@ -1052,9 +1054,13 @@ function handleMenuInteraction(): void {
         menuMusicPlaying = true;
         return;
     }
-    // Audio already unlocked — always show player select (handles 0 controllers gracefully)
-    gameStarted = true; // stops startScreenLoop from continuing its rAF
-    playerSelectLoop();
+    // Audio already unlocked — go to player select if controllers are present, else start solo
+    gameStarted = true;
+    if (hasGamepad || GamepadPlayerInput.connectedIndices().length > 0) {
+        playerSelectLoop();
+    } else {
+        start([{ id: 1, input: new CompositePlayerInput([new KeyboardPlayerInput(), new TouchPlayerInput()]) as PlayerInput }]);
+    }
 }
 
 // ── Player Select Screen ──────────────────────────────────────────────────────
@@ -1183,7 +1189,7 @@ function startScreenLoop(): void {
     const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     let aDown = false;
     for (const gp of gamepads) { if (gp?.buttons[0]?.pressed) { aDown = true; break; } }
-    if (aDown && !startScreenPrevA) handleMenuInteraction();
+    if (aDown && !startScreenPrevA) handleMenuInteraction(true); // gamepad triggered → controllers present
     startScreenPrevA = aDown;
 
     // Auto-play menu music after returning from a game (audio already unlocked)
@@ -1450,7 +1456,7 @@ window.onload = function () {
     }
 
     document.onkeydown = (e: KeyboardEvent) => { handleMenuInteraction(); };
-    document.addEventListener('click', handleMenuInteraction);
+    document.addEventListener('click', () => handleMenuInteraction());
     document.addEventListener('touchend', (e: Event) => { e.preventDefault(); handleMenuInteraction(); }, { passive: false } as EventListenerOptions);
 
     startScreenLoop();
