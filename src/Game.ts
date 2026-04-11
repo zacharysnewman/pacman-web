@@ -10,7 +10,7 @@ import { Stats }  from './static/Stats';
 import type { HighScoreEntry } from './static/Stats';
 import { Sound }  from './static/Sound';
 import { GameObject } from './object/GameObject';
-import type { IGameObject, Direction, PlayerState } from './types';
+import type { IGameObject, Direction, PlayerState, LevelData } from './types';
 import type { PlayerInput } from './input/PlayerInput';
 
 // Confirmed player slot: id + pre-constructed input instance
@@ -685,6 +685,10 @@ function staggerLateStarters(): void {
 function triggerGameOver(): void {
     gameState.gameOver = true;
     gameState.frozen = true;
+    if (testMode) {
+        setTimeout(() => { returningToEditor = true; }, 1500);
+        return;
+    }
     // Use native setTimeout so the transition is independent of the game-loop
     // timer system — any error in a pending Time.addTimer callback won't block it.
     setTimeout(() => {
@@ -804,8 +808,8 @@ function createPlayer(id: number, startTile: { x: number; y: number }, input: Pl
     return playerState;
 }
 
-function initializeLevel(slots: ConfirmedSlot[]): void {
-    gameState.currentLevel = Levels.level1Data;
+function initializeLevel(slots: ConfirmedSlot[], levelOverride?: LevelData): void {
+    gameState.currentLevel = levelOverride ?? Levels.level1Data;
     const lv = gameState.currentLevel;
 
     Levels.levelSetup   = lv.tiles;
@@ -848,6 +852,20 @@ function updateAmbientSiren(): void {
 
 function update(): void {
     try { Time.update(); } catch (e) { console.error('Time.update error:', e); }
+
+    if (returningToEditor) {
+        returningToEditor = false;
+        testMode = false;
+        Sound.stopSiren();
+        for (const p of gameState.players) p.input.destroy();
+        gameState.players = [];
+        gameStarted = false;
+        document.removeEventListener('keydown', testModeEscHandler);
+        const cb = editorReturnCallback;
+        editorReturnCallback = null;
+        if (cb) cb();
+        return;
+    }
 
     if (returningToMenu || returningToPlayerSelect) {
         const toSelect = returningToPlayerSelect;
@@ -914,6 +932,55 @@ function update(): void {
     window.requestAnimationFrame(update);
 }
 
+function testModeEscHandler(e: KeyboardEvent): void {
+    if (e.key === 'Escape') {
+        returningToEditor = true;
+        document.removeEventListener('keydown', testModeEscHandler);
+    }
+}
+
+export function startTestGame(level: LevelData, onReturn: () => void): void {
+    editorReturnCallback = onReturn;
+    testMode = true;
+
+    Stats.reset();
+    gameState.sharedLives = 2;
+    gameState.level = 1;
+    gameState.scatterChaseIndex = 0;
+    gameState.scatterChaseElapsed = 0;
+    gameState.frightenedRemaining = 0;
+    gameState.enemyEatenChain = 0;
+    gameState.scorePopups = [];
+    gameState.useGlobalDotCounter = false;
+    gameState.globalDotCounter = 0;
+    gameState.idleTimer = 0;
+    gameState.dotsEaten = 0;
+    gameState.fruitActive = null;
+    gameState.fruitSpawned1 = false;
+    gameState.fruitSpawned2 = false;
+    gameState.fruitHistory = [];
+    gameState.elroyLevel = 0;
+    gameState.elroySuspended = false;
+    gameState.gameOver = false;
+    AI.resetPrng();
+
+    Sound.stopMenuMusic();
+
+    gameStarted = true;
+    Time.setup();
+    const slot = { id: 1, input: new CompositePlayerInput([new KeyboardPlayerInput(), new TouchPlayerInput()]) as PlayerInput };
+    initializeLevel([slot], level);
+    gameState.frozen = true;
+    gameState.showReady = true;
+    Sound.introChimes();
+    Time.addTimer(2.0, () => {
+        gameState.frozen = false;
+        gameState.showReady = false;
+    });
+    document.addEventListener('keydown', testModeEscHandler);
+    update();
+}
+
 function start(slots: ConfirmedSlot[]): void {
     // Inject debug phantom players (noop GamepadPlayerInput with nonexistent index)
     const maxId = slots.reduce((m, s) => Math.max(m, s.id), 0);
@@ -965,6 +1032,9 @@ function start(slots: ConfirmedSlot[]): void {
 let gameStarted = false;
 let returningToMenu = false;
 let returningToPlayerSelect = false;
+let returningToEditor = false;
+let editorReturnCallback: (() => void) | null = null;
+let testMode = false;
 let debugExtraPlayers = 0; // injected phantom players for testing multiplayer
 let audioUnlocked = false;   // true after first user gesture (AudioContext created)
 let menuMusicPlaying = false; // true while menu music is actively playing

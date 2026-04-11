@@ -1,265 +1,129 @@
-# MAP-EDITOR.md — Level Editor Implementation Plan
+# MAP-EDITOR.md — Level Editor
 
 ## Overview
 
-A browser-based tile editor overlaid on the existing canvas (or in a separate editor mode) that allows designing, saving, and loading custom dot-maze levels. The editor must handle all tile types, special objects (enemy house, spawn points, warp tunnels), and validate playability.
+A browser-based tile editor overlaid on the game canvas, accessible via `?editor=true`. Supports designing, saving, loading, and play-testing custom dot-maze levels. All changes are auto-saved and levels can be stored in a persistent in-browser library.
 
 ---
 
-## 1. Tile System
+## Accessing the Editor
 
-### Current Tile Values (from `Levels.level1`)
+```
+http://localhost:PORT/?editor=true
+```
 
-The level array is `number[][]` with 36 rows × 28 columns. Based on codebase references:
+On load the editor restores the last auto-saved session. If no autosave exists it starts from the built-in Classic level.
 
-| Value | Meaning |
+---
+
+## Features
+
+### Tile Painting
+| Tool | How to use |
 |---|---|
-| `0` | Solid wall (impassable) |
-| `1` | Dot (pellet) |
-| `2` | Power pellet |
-| `> 2` | Open corridor (passable; enemy/player movement checks `tileValue > 2`) |
-| Special | Enemy house gate — special tile rendered differently (cage opening) |
+| **Paint** | Click/drag the canvas to place the selected tile type |
+| **Erase** | Click/drag to set tiles to Empty |
+| **Flood Fill** | Click any tile to BFS-fill all contiguous matching tiles |
 
-### Required Changes
+Tile types in the palette:
 
-- **Document all tile values** in a new `src/tiles.ts` constants file:
-  ```ts
-  export const TILE_WALL       = 0;
-  export const TILE_DOT        = 1;
-  export const TILE_POWER      = 2;
-  export const TILE_EMPTY      = 3;  // open corridor
-  export const TILE_GHOST_DOOR = 4;  // enemy house gate (audit exact value from source)
-  ```
-- **Wall auto-connection**: `Draw.level()` uses neighbor-aware rendering for connected wall borders. The editor must ensure this recomputes when tiles change (should be free if `Draw.level()` reads `levelDynamic` each frame without caching geometry).
-
----
-
-## 2. Hardcoded Constants to Parameterize
-
-The following are currently hardcoded and must become `LevelData` fields:
-
-| Constant | Location | Description |
+| Swatch | Value | Meaning |
 |---|---|---|
-| `START.player.x/y` | `src/Game.ts` | Player spawn tile |
-| `START.blinky/inky/pinky/clyde .x/y` | `src/Game.ts` | Enemy spawn tiles |
-| `TUNNEL_ROW` | `src/constants.ts` | Row for warp tunnels |
-| `TUNNEL_SLOW_COL_MAX` | `src/constants.ts` | Slow-down columns (left side) |
-| `TUNNEL_SLOW_COL_MIN` | `src/constants.ts` | Slow-down columns (right side) |
-| `RED_ZONE_TILES` | `src/constants.ts` | Tiles where enemies can't turn upward |
-| Fruit spawn position | `src/Game.ts` | Where fruit appears |
-| Enemy house entrance | implicit | Row/col of enemy house door tile |
-| Enemy scatter targets | `src/Move.ts` | Corner tiles enemies scatter to |
+| Wall | `0` | Solid — players and enemies cannot pass |
+| Door | `2` | Enemy house gate — only enemies in entering/exiting mode pass |
+| Dot  | `3` | Small pellet — collectible, counts toward level clear |
+| Power | `4` | Power pellet — triggers frightened mode |
+| Empty | `5` | Open corridor — passable, no collectible |
 
-### `LevelData` Interface
+### Spawn / Config Tools
+| Button | Effect |
+|---|---|
+| **P Player** | Click canvas to move player spawn |
+| **R Red** | Move Red enemy spawn |
+| **C Cyan** | Move Cyan enemy spawn |
+| **H Pink** | Move Hotpink enemy spawn |
+| **O Orange** | Move Orange enemy spawn |
+| **F Fruit** | Move fruit spawn |
+| **🚪 Door** | Place the enemy house gate tile |
+| **~ Tunnel Row** | Click any tile — its row becomes the warp tunnel row |
+| **⊕ Red Zone** | Click/drag to toggle red-zone tiles (junctions where enemies can't turn upward) |
 
-All of the above should move into a `LevelData` interface stored alongside the tile array:
+### Scatter Targets
+Four cross-marker tools (one per enemy color) let you click anywhere on the canvas to set that enemy's scatter-mode corner target. Targets are shown as colored ✕ markers in the overlay.
 
-```ts
-// src/types.ts (add to existing file)
-export interface LevelData {
-    version: number;
-    name: string;
-    tiles: number[][];                          // 36×28 tile grid
-    playerStart: { x: number; y: number };
-    enemyStarts: {
-        blinky: { x: number; y: number };
-        inky:   { x: number; y: number };
-        pinky:  { x: number; y: number };
-        clyde:  { x: number; y: number };
-    };
-    fruitSpawn:     { x: number; y: number };
-    tunnelRow:      number;
-    tunnelSlowColMax: number;
-    tunnelSlowColMin: number;
-    redZoneTiles:   { x: number; y: number }[];
-    enemyHouseDoor: { x: number; y: number };
-    scatterTargets: {
-        blinky: { x: number; y: number };
-        inky:   { x: number; y: number };
-        pinky:  { x: number; y: number };
-        clyde:  { x: number; y: number };
-    };
-}
-```
+### Grid & Undo
+- **Grid toggle** — show/hide the tile grid overlay
+- **Undo / Redo** — snapshot-based (up to 50 steps); keyboard: `Ctrl+Z` / `Ctrl+Y` or `Ctrl+Shift+Z`
 
 ---
 
-## 3. Editor Architecture
+## Validation
 
-### Entry Point
+Click **✔ Validate** to run all checks. Results appear inline in the panel.
 
-- Add `?editor=true` URL parameter (alongside existing `?dev=true`)
-- In `window.onload`, detect this and call `startEditorMode()` instead of `startScreenLoop()`
-- Editor runs its own `requestAnimationFrame` loop separate from the game loop
-
-### Editor State
-
-```ts
-// src/editor/EditorState.ts
-export interface EditorState {
-    level: LevelData;
-    selectedTool: EditorTool;
-    selectedTileValue: number;
-    hoveredCell: { x: number; y: number } | null;
-    undoStack: LevelData[];
-    redoStack: LevelData[];
-    isDirty: boolean;
-    showGrid: boolean;
-}
-
-export type EditorTool =
-    | 'paint'
-    | 'erase'
-    | 'fill'
-    | 'player_spawn'
-    | 'enemy_blinky'
-    | 'enemy_inky'
-    | 'enemy_pinky'
-    | 'enemy_clyde'
-    | 'fruit_spawn'
-    | 'tunnel_config'
-    | 'red_zone';
-```
-
-### Canvas Interaction
-
-- **Click/touch → tile coordinates**:
-  ```ts
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width  / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const tx = Math.floor((clientX - rect.left) * scaleX / unit);
-  const ty = Math.floor((clientY - rect.top)  * scaleY / unit);
-  ```
-- **Mouse drag**: paint/erase continuously while button held (`mousedown` → `mousemove` → `mouseup`)
-- **Hover**: highlight current cell with a semi-transparent overlay
-- **Touch**: `touchstart`/`touchmove`/`touchend` → same tile coords
+| # | Rule |
+|---|---|
+| 1 | Grid must be exactly 36 rows × 28 columns |
+| 2 | At least one dot or power pellet must exist |
+| 3 | Player spawn must be on a walkable tile (value > 0) |
+| 4 | All enemy spawns must be on walkable tiles |
+| 5 | Fruit spawn should be on a walkable tile (warning only) |
+| 6 | Tunnel row must be in bounds |
+| 7 | BFS reachability — all dots must be reachable from player spawn (respects tunnel wrapping) |
+| 8 | Level name should not be empty (warning only) |
 
 ---
 
-## 4. Editor UI
+## Play-Testing
 
-### HTML Overlay Panel
-
-A fixed-position panel (left or right side, similar to the existing debug panel) containing:
-
-**Tile Palette**
-- Visual tile swatches: Wall, Dot, Power Pellet, Empty, Enemy Door
-- Selected tile highlighted with border
-- Click to select
-
-**Tools**
-- Paint (pencil) — place selected tile on click/drag
-- Erase — set tile to empty on click/drag
-- Flood Fill — replace contiguous same-value tiles (BFS)
-- Spawn placers — click canvas to move: Player start, Blinky/Inky/Pinky/Clyde, Fruit
-
-**Actions**
-- Undo (`Ctrl+Z`) / Redo (`Ctrl+Y` or `Ctrl+Shift+Z`)
-- New Level (blank or from built-in template)
-- Save — downloads `.json` file
-- Load — `<input type="file">` to load JSON
-- Test — launches game with current level (switches to game mode)
-- Validate — runs playability checks, shows errors
-
-**Info Display**
-- Hovered tile coordinates (x, y)
-- Total dot count / power pellet count
-- Validation status (green checkmark or red errors with coords)
+**▶ Test Level** validates first, then launches a live game session with the current editor level (1-player keyboard/gamepad). Press **Escape** at any time to return to the editor. Game-over also returns to the editor automatically.
 
 ---
 
-## 5. Rendering
+## Level Library (Multi-Map)
 
-### `Draw.editorOverlay(state: EditorState): void`
+All maps are stored persistently in `localStorage` under the key `editor_library`.
 
-New static method in `src/static/Draw.ts`:
+| Button | Effect |
+|---|---|
+| **💾 Save to Library** | Saves/updates the current level. Re-saving overwrites the same entry (by ID). Requires a non-empty level name. |
+| **📂 My Maps (n)** | Opens the library browser modal showing all saved levels. |
 
-```ts
-static editorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): void {
-    // Grid lines (optional, toggled by state.showGrid)
-    if (state.showGrid) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-        ctx.lineWidth = 0.5;
-        for (let x = 0; x <= gridW; x++) {
-            ctx.beginPath();
-            ctx.moveTo(x * unit, 0);
-            ctx.lineTo(x * unit, gridH * unit);
-            ctx.stroke();
-        }
-        for (let y = 0; y <= gridH; y++) {
-            ctx.beginPath();
-            ctx.moveTo(0, y * unit);
-            ctx.lineTo(gridW * unit, y * unit);
-            ctx.stroke();
-        }
-    }
+### Library Modal
 
-    // Hovered cell highlight
-    if (state.hoveredCell) {
-        const { x, y } = state.hoveredCell;
-        ctx.fillStyle = 'rgba(255,255,255,0.25)';
-        ctx.fillRect(x * unit, y * unit, unit, unit);
-    }
-
-    // Spawn point markers (colored circles with labels)
-    drawSpawnMarker(ctx, state.level.playerStart,       'yellow',  'P');
-    drawSpawnMarker(ctx, state.level.enemyStarts.blinky, '#FF0000', 'B');
-    drawSpawnMarker(ctx, state.level.enemyStarts.inky,   '#00FFFF', 'I');
-    drawSpawnMarker(ctx, state.level.enemyStarts.pinky,  '#FFB8FF', 'Pi');
-    drawSpawnMarker(ctx, state.level.enemyStarts.clyde,  '#FFB852', 'C');
-    drawSpawnMarker(ctx, state.level.fruitSpawn,         '#FF6600', 'F');
-
-    // Tunnel row highlight
-    ctx.fillStyle = 'rgba(0,200,255,0.12)';
-    ctx.fillRect(0, state.level.tunnelRow * unit, gridW * unit, unit);
-
-    // Red zone tile markers
-    for (const t of state.level.redZoneTiles) {
-        ctx.fillStyle = 'rgba(255,0,0,0.25)';
-        ctx.fillRect(t.x * unit, t.y * unit, unit, unit);
-    }
-
-    // Enemy house door highlight
-    const d = state.level.enemyHouseDoor;
-    ctx.strokeStyle = 'rgba(255,180,255,0.9)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(d.x * unit + 1, d.y * unit + 1, unit - 2, unit - 2);
-}
-```
+Each entry shows:
+- **Level name** and last-saved timestamp
+- **Dot count**
+- **📂 Load** — loads the level into the editor (pushes undo)
+- **▶ Test** — validates and launches a test game directly from the library
+- **🗑 Delete** — removes the entry (with confirmation)
 
 ---
 
-## 6. Wall Auto-Connection
+## Save / Load Files
 
-The current `Draw.level()` renders walls using tile neighbor checks. When the editor modifies a tile:
-
-- All 8 neighbors of the changed tile may need visual update
-- If `Draw.level()` is purely functional (reads `levelDynamic` each frame), no change needed — re-rendering happens automatically
-- If wall geometry is cached, add an `invalidateWallCache()` call on tile change
-
-**Action**: Audit `Draw.level()` in `src/static/Draw.ts` to confirm it is stateless. If it is, no changes needed for wall rendering in the editor.
-
----
-
-## 7. Serialization
+| Button | Effect |
+|---|---|
+| **⬇ Export** | Downloads the current level as a `.json` file |
+| **⬆ Import** | Opens a file picker to load a `.json` level file into the editor |
+| **↺ Reset** | Resets to the built-in Classic level (with confirmation) |
 
 ### JSON Format
 
 ```json
 {
   "version": 1,
-  "name": "Custom Level 1",
-  "tiles": [[0, 0, 0, ...], [0, 1, 1, ...], ...],
-  "playerStart":  { "x": 14, "y": 26 },
+  "name": "My Level",
+  "tiles": [[0, 0, ...], ...],
+  "playerStart": { "x": 13.5, "y": 26 },
   "enemyStarts": {
-    "blinky": { "x": 14, "y": 14 },
-    "inky":   { "x": 12, "y": 17 },
-    "pinky":  { "x": 14, "y": 17 },
-    "clyde":  { "x": 16, "y": 17 }
+    "redEnemy":     { "x": 13.5, "y": 14 },
+    "cyanEnemy":    { "x": 12,   "y": 17 },
+    "hotpinkEnemy": { "x": 13.5, "y": 17 },
+    "orangeEnemy":  { "x": 15,   "y": 17 }
   },
-  "fruitSpawn":     { "x": 14, "y": 20 },
-  "tunnelRow":      17,
+  "fruitSpawn":       { "x": 13, "y": 20 },
+  "tunnelRow":        17,
   "tunnelSlowColMax": 5,
   "tunnelSlowColMin": 22,
   "redZoneTiles": [
@@ -268,213 +132,118 @@ The current `Draw.level()` renders walls using tile neighbor checks. When the ed
   ],
   "enemyHouseDoor": { "x": 14, "y": 15 },
   "scatterTargets": {
-    "blinky": { "x": 27, "y": 0  },
-    "inky":   { "x": 27, "y": 35 },
-    "pinky":  { "x": 0,  "y": 0  },
-    "clyde":  { "x": 0,  "y": 35 }
+    "redEnemy":     { "x": 26, "y": 0  },
+    "cyanEnemy":    { "x": 27, "y": 34 },
+    "hotpinkEnemy": { "x": 2,  "y": 0  },
+    "orangeEnemy":  { "x": 0,  "y": 34 }
   }
 }
 ```
 
-### Save (`src/editor/Serialize.ts`)
+---
 
-```ts
-export function saveLevel(data: LevelData): void {
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${data.name.replace(/\s+/g, '_') || 'level'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
+## Auto-Save
 
-export function loadLevelFromFile(file: File): Promise<LevelData> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => {
-            try {
-                const data = JSON.parse(e.target!.result as string) as LevelData;
-                validateSchema(data); // throws on bad schema
-                resolve(data);
-            } catch (err) {
-                reject(err);
-            }
-        };
-        reader.readAsText(file);
-    });
-}
-```
-
-### LocalStorage Autosave
-
-- Key: `player_editor_autosave`
-- Save on every tile change (debounced 500ms)
-- On editor load: restore from autosave if present, else use built-in level
+The editor auto-saves to `localStorage` key `editor_autosave` within 500 ms of any change (debounced). This is separate from the library — it is a single scratch-pad slot that restores the last working state on page reload.
 
 ---
 
-## 8. Validation Rules (`src/editor/Validate.ts`)
+## Keyboard Shortcuts
 
-Before allowing "Test" or marking as valid:
-
-| # | Rule | Description |
-|---|---|---|
-| 1 | **Dot reachability** | BFS from Player start — all dots/power pellets must be reachable |
-| 2 | **No isolated regions** | All passable tiles reachable from Player start |
-| 3 | **Minimum dots** | At least 1 dot must exist (otherwise level immediately clears) |
-| 4 | **Enemy house** | Exactly one enemy door tile; enemy house interior enclosed |
-| 5 | **Enemy escape path** | Passable path exists from enemy house interior to main maze |
-| 6 | **Spawn points on open tiles** | All 5 spawns (4 enemies + Player) must be on `tileValue > 2` tiles |
-| 7 | **Tunnel symmetry** | If tunnel row set, col 0 and col 27 must be open (warp exits) |
-| 8 | **Grid dimensions** | Tile array must be exactly 36 rows × 28 columns |
-
-```ts
-export interface ValidationResult {
-    valid: boolean;
-    errors: Array<{
-        rule: string;
-        message: string;
-        tiles?: { x: number; y: number }[];  // for highlight on canvas
-    }>;
-}
-
-export function validateLevel(data: LevelData): ValidationResult { ... }
-```
-
-Display errors in the panel with affected tiles highlighted in red on canvas.
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Z` / `Cmd+Z` | Undo |
+| `Ctrl+Y` / `Ctrl+Shift+Z` / `Cmd+Shift+Z` | Redo |
+| `Escape` (during test) | Return to editor |
 
 ---
 
-## 9. Integration with Game Loop
+## Architecture
 
-### `start()` changes (`src/Game.ts`)
+### Files
 
-```ts
-// Accept optional LevelData; fall back to built-in level
-function start(slots: PlayerSlot[], levelData?: LevelData): void {
-    const level = levelData ?? builtInLevel;   // builtInLevel = refactored Levels.level1
-    currentLevel = level;
-    Levels.levelDynamic = level.tiles.map(row => [...row]);
-    // use currentLevel.playerStart, .enemyStarts, .tunnelRow, etc. everywhere
-    // instead of hardcoded constants
-    ...
-}
-```
+| File | Purpose |
+|---|---|
+| `src/editor/EditorState.ts` | State interface, undo/redo, deep-copy helpers |
+| `src/editor/EditorLoop.ts` | rAF loop, canvas input, tool dispatch, panel UI, library modal |
+| `src/editor/Validate.ts` | BFS reachability and all validation rules |
+| `src/editor/LevelLibrary.ts` | localStorage multi-map library (CRUD) |
 
-### `src/constants.ts` changes
-
-- `TUNNEL_ROW`, `TUNNEL_SLOW_COL_MAX/MIN`, `RED_ZONE_TILES` remain as fallback defaults
-- When a custom `LevelData` is active, game code reads from `currentLevel.*` instead
-
-### `src/Levels.ts` changes
-
-- Built-in level becomes a `LevelData` object:
-  ```ts
-  export const level1: LevelData = {
-      version: 1,
-      name: "Classic",
-      tiles: [...],    // existing level1 array
-      playerStart: { x: 14, y: 26 },
-      enemyStarts: { blinky: {...}, inky: {...}, pinky: {...}, clyde: {...} },
-      // ... all other constants
-  };
-  ```
-- `Levels.levelDynamic` initialized as a copy of `level1.tiles`
-
-### `src/Move.ts` changes
-
-- Enemy scatter targets read from `currentLevel.scatterTargets`
-- Tunnel slow-down reads from `currentLevel.tunnelSlowColMax/Min` and `currentLevel.tunnelRow`
-- Red zone checks read from `currentLevel.redZoneTiles`
-
----
-
-## 10. Editor Mode Lifecycle
+### Data Flow
 
 ```
-window.onload + ?editor=true
+?editor=true
     ↓
-loadEditorState()          — initialize with built-in level; restore autosave if present
+startEditorMode()          ← loads autosave or level1Data
     ↓
 editorLoop() [rAF]
-    → Draw.level()          — renders tile grid (uses levelDynamic working copy)
-    → Draw.editorOverlay()  — grid lines, spawn markers, hover highlight, zone overlays
-    → HTML panel            — tool palette, actions, info
+    → Draw.level()          ← reads Levels.levelDynamic each frame
+    → drawEditorOverlay()   ← grid, spawn markers, tunnel highlight, scatter targets
     ↓
-User edits tiles / places spawns / adjusts tunnels
+User edits → applyToolDown/Drag → Levels.levelDynamic updated live
     ↓
-User clicks "Test"
+Save to Library → LevelLibrary.saveLevel()    (localStorage array)
+Browse My Maps  → openLibraryModal()          (load / test / delete each entry)
+Export          → JSON file download
+Import          → JSON file picker → pushUndo → Object.assign(state.level, …)
     ↓
-validateLevel(editorState.level) → show errors or proceed
-    ↓
-start(singlePlayerSlots, editorState.level) — game starts with custom level
-    ↓
-On game exit (returningToMenu flag) → back to editorLoop()
-                                       (new flag: returningToEditor)
+▶ Test Level → validateLevel → startTestGame(level, onReturn)
+    → Game runs with custom level (1-player, full game loop)
+    → ESC or game-over → onReturn() → editor panel rebuilt, rAF restarted
+```
+
+### LevelData Interface (`src/types.ts`)
+
+```typescript
+interface LevelData {
+    version: number;
+    name: string;
+    tiles: TileValue[][];           // 36 rows × 28 cols; TileValue = 0|2|3|4|5
+    playerStart: { x: number; y: number };
+    enemyStarts: {
+        redEnemy:     { x: number; y: number };
+        cyanEnemy:    { x: number; y: number };
+        hotpinkEnemy: { x: number; y: number };
+        orangeEnemy:  { x: number; y: number };
+    };
+    fruitSpawn:       { x: number; y: number };
+    tunnelRow:        number;
+    tunnelSlowColMax: number;
+    tunnelSlowColMin: number;
+    redZoneTiles:     { x: number; y: number }[];
+    enemyHouseDoor:   { x: number; y: number };
+    scatterTargets: {
+        redEnemy:     { x: number; y: number };
+        cyanEnemy:    { x: number; y: number };
+        hotpinkEnemy: { x: number; y: number };
+        orangeEnemy:  { x: number; y: number };
+    };
+}
 ```
 
 ---
 
-## 11. Files to Create / Modify
+## Implementation Status
 
-| File | Action | Description |
-|---|---|---|
-| `src/editor/EditorState.ts` | **Create** | Editor state interface and initializer |
-| `src/editor/EditorLoop.ts` | **Create** | rAF loop, canvas input handling, tool dispatch |
-| `src/editor/Validate.ts` | **Create** | Level validation rules (BFS, schema checks) |
-| `src/editor/Serialize.ts` | **Create** | Save/load JSON, LocalStorage autosave |
-| `src/tiles.ts` | **Create** | Named tile value constants |
-| `src/types.ts` | **Modify** | Add `LevelData` interface |
-| `src/constants.ts` | **Modify** | Keep as defaults; note they're overridden by `LevelData` |
-| `src/Levels.ts` | **Modify** | Wrap `level1` array + all spawn/tunnel/zone constants into `LevelData` |
-| `src/Game.ts` | **Modify** | `start()` accepts optional `LevelData`; `?editor=true` entry; `returningToEditor` flag |
-| `src/Move.ts` | **Modify** | Read tunnel/redzone/scatter from active `LevelData` |
-| `src/static/Draw.ts` | **Modify** | Add `Draw.editorOverlay()` |
-| `index.html` | **Modify** | Editor panel HTML (or dynamically created like debug panel) |
-
----
-
-## 12. Phased Implementation
-
-### Phase 1 — Foundation ✅
-- [x] Define `LevelData` interface in `src/types.ts`
-- [x] Create `src/tiles.ts` with named tile value constants
-- [x] Refactor built-in level: `Levels.level1Data` wraps tile array + all spawn/tunnel/zone constants into a `LevelData` object
-- [x] Add `gameState.currentLevel: LevelData` set in `initializeLevel()`
-- [x] Update `Game.ts` to read spawn positions, tunnel constants, fruit spawn from `currentLevel`
-- [x] Update `AI.ts` to read scatter targets, tunnel row, red zone tiles from `currentLevel`
-- [x] Update `Draw.ts` to read red zone tiles from `currentLevel`
-- Verify game runs identically with refactored data (regression test: play through, check enemy AI, tunnels, scoring)
-
-### Phase 2 — Basic Editor ✅
-- [x] `?editor=true` entry point in `window.onload`
-- [x] Editor rAF loop (`EditorLoop.ts`)
-- [x] Tile paint/erase with mouse and touch
-- [x] Grid overlay, hover highlight
-- [x] Undo/redo (snapshot-based)
-
-### Phase 3 — Spawn & Special Tiles ✅
-- [x] Spawn point placement tools (click/drag to reposition: Player, Blinky, Inky, Pinky, Clyde, Fruit)
-- [x] Enemy house door placement
-- [x] Tunnel row configuration (click any tile on the desired row)
-- [x] Red zone tile toggle (click to add, click again to remove; drag to paint/erase)
-
-### Phase 4 — Validation & Testing
-- BFS reachability checks (`Validate.ts`)
-- Validation panel with error list and canvas highlight
-- "Test" button: validate → launch game with editor level
-- `returningToEditor` flag routes game exit back to editor
-
-### Phase 5 — Save/Load
-- JSON export (file download)
-- JSON import (`<input type="file">`)
-- LocalStorage autosave (debounced)
-- Level name field
-
-### Phase 6 — Polish
-- Flood fill tool
-- Copy/paste rectangular regions
-- Multiple saved levels (localStorage list)
-- Keyboard shortcuts cheatsheet overlay
+| Feature | Status |
+|---|---|
+| Tile paint / erase / flood fill | ✅ Complete |
+| Undo / redo (50 steps) | ✅ Complete |
+| Grid overlay + hover highlight | ✅ Complete |
+| Spawn placement (Player, 4 enemies, Fruit) | ✅ Complete |
+| Enemy house door placement | ✅ Complete |
+| Tunnel row configuration | ✅ Complete |
+| Red zone tile toggle | ✅ Complete |
+| Scatter target placement (per enemy) | ✅ Complete |
+| Level name input | ✅ Complete |
+| Validation (BFS + all rules) | ✅ Complete |
+| Play-test with ESC-to-return | ✅ Complete |
+| Auto-save (debounced 500 ms) | ✅ Complete |
+| Auto-restore on page reload | ✅ Complete |
+| JSON export (file download) | ✅ Complete |
+| JSON import (file picker) | ✅ Complete |
+| Reset to built-in level | ✅ Complete |
+| Multi-map library (localStorage) | ✅ Complete |
+| Library modal (Load / Test / Delete) | ✅ Complete |
+| Touch / mobile input | ✅ Complete |
+| Keyboard shortcuts (Ctrl+Z/Y) | ✅ Complete |
