@@ -20,6 +20,8 @@ export type EditorTool =
 
 export interface EditorState {
     level: LevelData;
+    /** Library entry id if this level was loaded from / saved to the library */
+    libraryId: string | null;
     selectedTool: EditorTool;
     selectedTileValue: TileValue;
     hoveredCell: { x: number; y: number } | null;
@@ -52,9 +54,10 @@ export function deepCopyLevel(level: LevelData): LevelData {
     };
 }
 
-export function createEditorState(level: LevelData): EditorState {
+export function createEditorState(level: LevelData, libraryId: string | null = null): EditorState {
     return {
         level: deepCopyLevel(level),
+        libraryId,
         selectedTool: 'paint',
         selectedTileValue: 5 as TileValue, // TILE_EMPTY
         hoveredCell: null,

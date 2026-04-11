@@ -6,6 +6,7 @@ import { startTestGame } from '../Game';
 import type { LevelData, TileValue } from '../types';
 import { TILE_EMPTY, TILE_WALL, TILE_GHOST_DOOR, TILE_DOT, TILE_POWER } from '../tiles';
 import { validateLevel } from './Validate';
+import { saveLevel, listLevels, deleteLevel, formatDate } from './LevelLibrary';
 import {
     createEditorState,
     pushUndo,
@@ -365,6 +366,142 @@ function importLevelJSON(onLoad: (level: LevelData) => void): void {
     input.click();
 }
 
+// ── Library Modal ─────────────────────────────────────────────────────────────
+
+function openLibraryModal(
+    state: EditorState,
+    nameInput: HTMLInputElement,
+    onLoaded: (id: string) => void,
+): void {
+    document.getElementById('ed-library-modal')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'ed-library-modal';
+    overlay.innerHTML = `
+    <style>
+    #ed-library-modal {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+        z-index: 200; display: flex; align-items: center; justify-content: center;
+        font-family: monospace;
+    }
+    #ed-lib-box {
+        background: #111; border: 2px solid #666; border-radius: 10px;
+        padding: 20px 24px; min-width: 340px; max-width: 480px;
+        max-height: 80vh; display: flex; flex-direction: column; gap: 12px;
+        color: #eee;
+    }
+    #ed-lib-box h3 { color: #ff0; margin: 0; font-size: 18px; }
+    #ed-lib-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .ed-lib-entry {
+        background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+        padding: 8px 10px; display: flex; flex-direction: column; gap: 5px;
+    }
+    .ed-lib-entry-name { font-size: 15px; color: #ff0; font-weight: bold; }
+    .ed-lib-entry-meta { font-size: 11px; color: #666; }
+    .ed-lib-entry-actions { display: flex; gap: 6px; }
+    .ed-lib-entry-actions button {
+        flex: 1; background: #222; color: #eee; border: 1px solid #444;
+        border-radius: 4px; padding: 5px 4px; cursor: pointer;
+        font-family: monospace; font-size: 12px;
+    }
+    .ed-lib-btn-load  { color: #88ff88 !important; border-color: #44aa44 !important; }
+    .ed-lib-btn-test  { color: #88aaff !important; border-color: #4466aa !important; }
+    .ed-lib-btn-del   { color: #ff6666 !important; border-color: #aa3333 !important; }
+    #ed-lib-empty { color: #555; font-size: 13px; text-align: center; padding: 20px 0; }
+    #ed-lib-close {
+        background: #222; color: #eee; border: 1px solid #555;
+        border-radius: 4px; padding: 8px; cursor: pointer;
+        font-family: monospace; font-size: 14px; align-self: flex-end;
+    }
+    </style>
+    <div id="ed-lib-box">
+        <h3>📂 My Maps</h3>
+        <div id="ed-lib-list"></div>
+        <button id="ed-lib-close">✕ Close</button>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    // Prevent canvas events
+    overlay.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+    overlay.addEventListener('touchend',   e => e.stopPropagation(), { passive: true });
+    overlay.addEventListener('click',      e => e.stopPropagation());
+    overlay.addEventListener('mousedown',  e => e.stopPropagation());
+
+    function closeModal(): void { overlay.remove(); }
+    document.getElementById('ed-lib-close')!.onclick = closeModal;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    function refreshList(): void {
+        const listEl = document.getElementById('ed-lib-list')!;
+        const entries = listLevels();
+        if (entries.length === 0) {
+            listEl.innerHTML = '<div id="ed-lib-empty">No saved maps yet.<br>Use "Save to Library" to add one.</div>';
+            return;
+        }
+        listEl.innerHTML = '';
+        for (const entry of [...entries].reverse()) {
+            const dotCount = entry.level.tiles.flat()
+                .filter(t => t === 3 || t === 4).length;
+            const div = document.createElement('div');
+            div.className = 'ed-lib-entry';
+            div.innerHTML = `
+                <div class="ed-lib-entry-name">${entry.level.name || '(Untitled)'}</div>
+                <div class="ed-lib-entry-meta">${formatDate(entry.savedAt)} · ${dotCount} dots</div>
+                <div class="ed-lib-entry-actions">
+                    <button class="ed-lib-btn-load">📂 Load</button>
+                    <button class="ed-lib-btn-test">▶ Test</button>
+                    <button class="ed-lib-btn-del">🗑 Delete</button>
+                </div>`;
+            const btns = div.querySelectorAll('button');
+            const loadBtn = btns[0] as HTMLButtonElement;
+            const testBtn = btns[1] as HTMLButtonElement;
+            const delBtn  = btns[2] as HTMLButtonElement;
+
+            loadBtn.addEventListener('click', () => {
+                pushUndo(state);
+                const loaded = deepCopyLevel(entry.level);
+                Object.assign(state.level, loaded);
+                state.libraryId = entry.id;
+                nameInput.value = state.level.name;
+                syncToRenderer(state);
+                scheduleAutosave(state.level);
+                onLoaded(entry.id);
+                closeModal();
+            });
+
+            testBtn.addEventListener('click', () => {
+                const result = validateLevel(entry.level);
+                if (!result.valid) {
+                    alert('Level has errors:\n' + result.errors.map(e => `• ${e}`).join('\n'));
+                    return;
+                }
+                closeModal();
+                // Remove panel while testing
+                const panel = document.getElementById('editor-panel');
+                panel?.remove();
+                startTestGame(deepCopyLevel(entry.level), () => {
+                    if (panel) {
+                        document.body.appendChild(panel);
+                        buildPanel(state, panel);
+                        syncToRenderer(state);
+                    }
+                    requestAnimationFrame(() => editorLoop(state));
+                });
+            });
+
+            delBtn.addEventListener('click', () => {
+                if (!confirm(`Delete "${entry.level.name || 'Untitled'}"?`)) return;
+                deleteLevel(entry.id);
+                if (state.libraryId === entry.id) state.libraryId = null;
+                refreshList();
+            });
+
+            listEl.appendChild(div);
+        }
+    }
+    refreshList();
+}
+
 // ── Panel UI ──────────────────────────────────────────────────────────────────
 
 const PALETTE: Array<{ value: TileValue; label: string; bg: string }> = [
@@ -513,6 +650,15 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         <hr class="ed-divider">
 
         <div class="ed-section">
+            <div class="ed-label">Library</div>
+            <button id="ed-save-lib">💾 Save to Library</button>
+            <button id="ed-open-lib">📂 My Maps</button>
+        </div>
+
+        <hr class="ed-divider">
+
+        <div class="ed-section">
+            <div class="ed-label">File</div>
             <div class="ed-row">
                 <button id="ed-export">⬇ Export</button>
                 <button id="ed-import">⬆ Import</button>
@@ -694,8 +840,41 @@ function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
         const fresh = deepCopyLevel(Levels.level1Data);
         Object.assign(state.level, fresh);
         nameInput.value = state.level.name;
+        state.libraryId = null;
         syncToRenderer(state);
         localStorage.removeItem(AUTOSAVE_KEY);
+    };
+
+    // Library — Save to Library
+    const saveLibBtn = document.getElementById('ed-save-lib') as HTMLButtonElement;
+    const openLibBtn = document.getElementById('ed-open-lib') as HTMLButtonElement;
+
+    function refreshLibCount(): void {
+        openLibBtn.textContent = `📂 My Maps (${listLevels().length})`;
+    }
+    refreshLibCount();
+
+    saveLibBtn.onclick = () => {
+        const trimmed = nameInput.value.trim();
+        if (!trimmed) {
+            alert('Give the level a name before saving to the library.');
+            nameInput.focus();
+            return;
+        }
+        state.level.name = trimmed;
+        state.libraryId = saveLevel(state.level, state.libraryId ?? undefined);
+        scheduleAutosave(state.level);
+        refreshLibCount();
+        saveLibBtn.textContent = '💾 Saved!';
+        setTimeout(() => { saveLibBtn.textContent = '💾 Save to Library'; }, 1200);
+    };
+
+    // Library — Browse / My Maps
+    openLibBtn.onclick = () => {
+        openLibraryModal(state, nameInput, (id) => {
+            state.libraryId = id;
+            refreshLibCount();
+        });
     };
 
     // Initial state
