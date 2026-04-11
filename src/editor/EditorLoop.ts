@@ -2,16 +2,45 @@ import { unit, gridW, gridH } from '../constants';
 import { gameState } from '../game-state';
 import { Levels } from '../static/Levels';
 import { Draw } from '../static/Draw';
-import type { TileValue } from '../types';
+import { startTestGame } from '../Game';
+import type { LevelData, TileValue } from '../types';
 import { TILE_EMPTY, TILE_WALL, TILE_GHOST_DOOR, TILE_DOT, TILE_POWER } from '../tiles';
+import { validateLevel } from './Validate';
 import {
     createEditorState,
     pushUndo,
     undo,
     redo,
+    deepCopyLevel,
     type EditorState,
     type EditorTool,
 } from './EditorState';
+
+// ── Autosave ──────────────────────────────────────────────────────────────────
+
+const AUTOSAVE_KEY = 'editor_autosave';
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleAutosave(level: LevelData): void {
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+        try {
+            localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(level));
+        } catch {
+            // ignore quota errors
+        }
+    }, 500);
+}
+
+function loadAutosave(): LevelData | null {
+    try {
+        const raw = localStorage.getItem(AUTOSAVE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw) as LevelData;
+    } catch {
+        return null;
+    }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +60,31 @@ function syncToRenderer(state: EditorState): void {
     Levels.levelDynamic = state.level.tiles.map(row => [...row] as TileValue[]);
 }
 
+// ── Flood Fill (BFS) ──────────────────────────────────────────────────────────
+
+function floodFill(state: EditorState, startX: number, startY: number): void {
+    const targetValue = state.level.tiles[startY][startX];
+    const fillValue: TileValue = state.selectedTool === 'erase'
+        ? TILE_EMPTY as TileValue
+        : state.selectedTileValue;
+    if (targetValue === fillValue) return;
+
+    const queue: Array<{ x: number; y: number }> = [{ x: startX, y: startY }];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+        const { x, y } = queue.shift()!;
+        const key = `${x},${y}`;
+        if (visited.has(key)) continue;
+        if (x < 0 || x >= gridW || y < 0 || y >= gridH) continue;
+        if (state.level.tiles[y][x] !== targetValue) continue;
+        visited.add(key);
+        state.level.tiles[y][x] = fillValue;
+        Levels.levelDynamic[y][x] = fillValue;
+        queue.push({ x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 });
+    }
+}
+
 // ── Tool Application ──────────────────────────────────────────────────────────
 
 let isPainting = false;
@@ -40,13 +94,18 @@ const redZoneDragSeen = new Set<string>();
 function applyToolDown(state: EditorState, cell: { x: number; y: number }): void {
     const { x, y } = cell;
     switch (state.selectedTool) {
-        case 'paint':
+        case 'paint': {
+            state.level.tiles[y][x] = state.selectedTileValue;
+            Levels.levelDynamic[y][x] = state.selectedTileValue;
+            break;
+        }
         case 'erase': {
-            const newTile: TileValue = state.selectedTool === 'erase'
-                ? TILE_EMPTY as TileValue
-                : state.selectedTileValue;
-            state.level.tiles[y][x] = newTile;
-            Levels.levelDynamic[y][x] = newTile;
+            state.level.tiles[y][x] = TILE_EMPTY as TileValue;
+            Levels.levelDynamic[y][x] = TILE_EMPTY as TileValue;
+            break;
+        }
+        case 'fill': {
+            floodFill(state, x, y);
             break;
         }
         case 'player_spawn':
@@ -86,29 +145,46 @@ function applyToolDown(state: EditorState, cell: { x: number; y: number }): void
             redZoneDragSeen.add(key);
             break;
         }
+        case 'scatter_red':
+            state.level.scatterTargets.redEnemy = { x, y };
+            break;
+        case 'scatter_cyan':
+            state.level.scatterTargets.cyanEnemy = { x, y };
+            break;
+        case 'scatter_hotpink':
+            state.level.scatterTargets.hotpinkEnemy = { x, y };
+            break;
+        case 'scatter_orange':
+            state.level.scatterTargets.orangeEnemy = { x, y };
+            break;
     }
 }
 
 function applyToolDrag(state: EditorState, cell: { x: number; y: number }): void {
     const { x, y } = cell;
     switch (state.selectedTool) {
-        case 'paint':
-        case 'erase': {
-            const newTile: TileValue = state.selectedTool === 'erase'
-                ? TILE_EMPTY as TileValue
-                : state.selectedTileValue;
-            state.level.tiles[y][x] = newTile;
-            Levels.levelDynamic[y][x] = newTile;
+        case 'paint': {
+            state.level.tiles[y][x] = state.selectedTileValue;
+            Levels.levelDynamic[y][x] = state.selectedTileValue;
             break;
         }
-        case 'player_spawn':   state.level.playerStart = { x, y }; break;
-        case 'enemy_red':   state.level.enemyStarts.redEnemy = { x, y }; break;
-        case 'enemy_cyan':     state.level.enemyStarts.cyanEnemy   = { x, y }; break;
-        case 'enemy_hotpink':    state.level.enemyStarts.hotpinkEnemy  = { x, y }; break;
-        case 'enemy_orange':    state.level.enemyStarts.orangeEnemy  = { x, y }; break;
-        case 'fruit_spawn':    state.level.fruitSpawn        = { x, y }; break;
-        case 'enemy_house_door': state.level.enemyHouseDoor  = { x, y }; break;
-        case 'tunnel_config':  state.level.tunnelRow = y; break;
+        case 'erase': {
+            state.level.tiles[y][x] = TILE_EMPTY as TileValue;
+            Levels.levelDynamic[y][x] = TILE_EMPTY as TileValue;
+            break;
+        }
+        case 'player_spawn':       state.level.playerStart = { x, y }; break;
+        case 'enemy_red':          state.level.enemyStarts.redEnemy = { x, y }; break;
+        case 'enemy_cyan':         state.level.enemyStarts.cyanEnemy = { x, y }; break;
+        case 'enemy_hotpink':      state.level.enemyStarts.hotpinkEnemy = { x, y }; break;
+        case 'enemy_orange':       state.level.enemyStarts.orangeEnemy = { x, y }; break;
+        case 'fruit_spawn':        state.level.fruitSpawn = { x, y }; break;
+        case 'enemy_house_door':   state.level.enemyHouseDoor = { x, y }; break;
+        case 'tunnel_config':      state.level.tunnelRow = y; break;
+        case 'scatter_red':        state.level.scatterTargets.redEnemy = { x, y }; break;
+        case 'scatter_cyan':       state.level.scatterTargets.cyanEnemy = { x, y }; break;
+        case 'scatter_hotpink':    state.level.scatterTargets.hotpinkEnemy = { x, y }; break;
+        case 'scatter_orange':     state.level.scatterTargets.orangeEnemy = { x, y }; break;
         case 'red_zone': {
             const key = `${x},${y}`;
             if (redZoneDragSeen.has(key)) break;
@@ -151,6 +227,24 @@ function drawSpawnMarker(
     ctx.restore();
 }
 
+function drawCrossMarker(
+    ctx: CanvasRenderingContext2D,
+    pos: { x: number; y: number },
+    color: string,
+): void {
+    const px = (pos.x + 0.5) * unit;
+    const py = (pos.y + 0.5) * unit;
+    const r = unit * 0.35;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px - r, py - r); ctx.lineTo(px + r, py + r);
+    ctx.moveTo(px + r, py - r); ctx.lineTo(px - r, py + r);
+    ctx.stroke();
+    ctx.restore();
+}
+
 function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): void {
     const lv = state.level;
 
@@ -176,13 +270,19 @@ function drawEditorOverlay(state: EditorState, ctx: CanvasRenderingContext2D): v
     ctx.strokeRect(d.x * unit + 1, d.y * unit + 1, unit - 2, unit - 2);
     ctx.restore();
 
+    // Scatter targets
+    drawCrossMarker(ctx, lv.scatterTargets.redEnemy,     '#FF3333');
+    drawCrossMarker(ctx, lv.scatterTargets.cyanEnemy,    '#00FFFF');
+    drawCrossMarker(ctx, lv.scatterTargets.hotpinkEnemy, '#FFB8FF');
+    drawCrossMarker(ctx, lv.scatterTargets.orangeEnemy,  '#FFB852');
+
     // Spawn markers
-    drawSpawnMarker(ctx, lv.playerStart,         'yellow',  'P');
-    drawSpawnMarker(ctx, lv.enemyStarts.redEnemy,  '#FF3333', 'R');
-    drawSpawnMarker(ctx, lv.enemyStarts.cyanEnemy,    '#00FFFF', 'C');
-    drawSpawnMarker(ctx, lv.enemyStarts.hotpinkEnemy,   '#FFB8FF', 'H');
-    drawSpawnMarker(ctx, lv.enemyStarts.orangeEnemy,   '#FFB852', 'O');
-    drawSpawnMarker(ctx, lv.fruitSpawn,          '#FF6600', 'F');
+    drawSpawnMarker(ctx, lv.playerStart,                 'yellow',   'P');
+    drawSpawnMarker(ctx, lv.enemyStarts.redEnemy,        '#FF3333',  'R');
+    drawSpawnMarker(ctx, lv.enemyStarts.cyanEnemy,       '#00FFFF',  'C');
+    drawSpawnMarker(ctx, lv.enemyStarts.hotpinkEnemy,    '#FFB8FF',  'H');
+    drawSpawnMarker(ctx, lv.enemyStarts.orangeEnemy,     '#FFB852',  'O');
+    drawSpawnMarker(ctx, lv.fruitSpawn,                  '#FF6600',  'F');
 
     // Grid lines
     if (state.showGrid) {
@@ -230,6 +330,41 @@ function editorLoop(state: EditorState): void {
     requestAnimationFrame(() => editorLoop(state));
 }
 
+// ── Save / Load ───────────────────────────────────────────────────────────────
+
+function exportLevelJSON(level: LevelData): void {
+    const name = level.name.trim() || 'level';
+    const json = JSON.stringify(level, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name.replace(/[^a-z0-9_\-]/gi, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importLevelJSON(onLoad: (level: LevelData) => void): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const data = JSON.parse(reader.result as string) as LevelData;
+                onLoad(data);
+            } catch {
+                alert('Invalid level JSON file.');
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
 // ── Panel UI ──────────────────────────────────────────────────────────────────
 
 const PALETTE: Array<{ value: TileValue; label: string; bg: string }> = [
@@ -242,12 +377,19 @@ const PALETTE: Array<{ value: TileValue; label: string; bg: string }> = [
 
 const SPAWN_BTNS: Array<{ tool: EditorTool; label: string; color: string }> = [
     { tool: 'player_spawn',     label: 'P Player', color: 'yellow'    },
-    { tool: 'enemy_red',     label: 'R Red',    color: '#FF3333'   },
+    { tool: 'enemy_red',        label: 'R Red',    color: '#FF3333'   },
     { tool: 'enemy_cyan',       label: 'C Cyan',   color: '#00FFFF'   },
-    { tool: 'enemy_hotpink',      label: 'H Pink',   color: '#FFB8FF'   },
-    { tool: 'enemy_orange',      label: 'O Orange', color: '#FFB852'   },
+    { tool: 'enemy_hotpink',    label: 'H Pink',   color: '#FFB8FF'   },
+    { tool: 'enemy_orange',     label: 'O Orange', color: '#FFB852'   },
     { tool: 'fruit_spawn',      label: 'F Fruit',  color: '#FF6600'   },
     { tool: 'enemy_house_door', label: '🚪 Door',  color: 'lightpink' },
+];
+
+const SCATTER_BTNS: Array<{ tool: EditorTool; label: string; color: string }> = [
+    { tool: 'scatter_red',     label: '✕ Red',    color: '#FF3333' },
+    { tool: 'scatter_cyan',    label: '✕ Cyan',   color: '#00FFFF' },
+    { tool: 'scatter_hotpink', label: '✕ Pink',   color: '#FFB8FF' },
+    { tool: 'scatter_orange',  label: '✕ Orange', color: '#FFB852' },
 ];
 
 const SPECIAL_BTNS: Array<{ tool: EditorTool; label: string }> = [
@@ -255,8 +397,8 @@ const SPECIAL_BTNS: Array<{ tool: EditorTool; label: string }> = [
     { tool: 'red_zone',      label: '⊕ Red Zone'   },
 ];
 
-function buildPanel(state: EditorState): void {
-    const panel = document.createElement('div');
+function buildPanel(state: EditorState, panelEl?: HTMLElement): HTMLElement {
+    const panel = panelEl ?? document.createElement('div');
     panel.id = 'editor-panel';
     panel.innerHTML = `
         <style>
@@ -295,9 +437,29 @@ function buildPanel(state: EditorState): void {
         #editor-panel .ed-row button { flex: 1; text-align: center; }
         #editor-panel label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 15px; }
         #editor-panel label input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: #ff0; }
+        #editor-panel input[type=text] {
+            background: #111; color: #ff0; border: 1px solid #555;
+            border-radius: 4px; padding: 5px 6px; font-family: monospace;
+            font-size: 14px; width: 100%; box-sizing: border-box;
+        }
+        #editor-panel .ed-divider { border: none; border-top: 1px solid #333; margin: 2px 0; }
         #ed-info { font-size: 13px; color: #888; min-height: 1em; }
+        #ed-validate-result { font-size: 12px; max-height: 120px; overflow-y: auto; }
+        #ed-validate-result .ed-error   { color: #ff6666; }
+        #ed-validate-result .ed-warning { color: #ffcc44; }
+        #ed-validate-result .ed-ok      { color: #66ff88; }
+        #ed-test-btn {
+            background: #004400; color: #88ff88; border-color: #44aa44;
+            font-weight: bold;
+        }
+        #ed-test-btn:hover { background: #005500; }
         </style>
         <h3>✏ EDITOR</h3>
+
+        <div class="ed-section">
+            <div class="ed-label">Name</div>
+            <input type="text" id="ed-name" maxlength="32" placeholder="Level name…">
+        </div>
 
         <div class="ed-section">
             <div class="ed-label">Tile</div>
@@ -308,11 +470,17 @@ function buildPanel(state: EditorState): void {
             <div class="ed-label">Tool</div>
             <button id="ed-tool-paint">✏ Paint</button>
             <button id="ed-tool-erase">◻ Erase</button>
+            <button id="ed-tool-fill">⬛ Fill</button>
         </div>
 
         <div class="ed-section">
             <div class="ed-label">Spawns</div>
             <div id="ed-spawns"></div>
+        </div>
+
+        <div class="ed-section">
+            <div class="ed-label">Scatter Targets</div>
+            <div id="ed-scatter"></div>
         </div>
 
         <div class="ed-section">
@@ -331,9 +499,30 @@ function buildPanel(state: EditorState): void {
             </div>
         </div>
 
+        <hr class="ed-divider">
+
+        <div class="ed-section">
+            <button id="ed-validate">✔ Validate</button>
+            <div id="ed-validate-result"></div>
+        </div>
+
+        <div class="ed-section">
+            <button id="ed-test-btn">▶ Test Level</button>
+        </div>
+
+        <hr class="ed-divider">
+
+        <div class="ed-section">
+            <div class="ed-row">
+                <button id="ed-export">⬇ Export</button>
+                <button id="ed-import">⬆ Import</button>
+            </div>
+            <button id="ed-reset">↺ Reset</button>
+        </div>
+
         <div id="ed-info"></div>
     `;
-    document.body.appendChild(panel);
+    if (!panelEl) document.body.appendChild(panel);
 
     // Stop all input events from bubbling to canvas handlers
     panel.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
@@ -358,6 +547,14 @@ function buildPanel(state: EditorState): void {
         });
     }
 
+    // Level name input
+    const nameInput = document.getElementById('ed-name') as HTMLInputElement;
+    nameInput.value = state.level.name;
+    nameInput.oninput = () => {
+        state.level.name = nameInput.value;
+        scheduleAutosave(state.level);
+    };
+
     // Palette
     const paletteEl = document.getElementById('ed-palette')!;
     for (const entry of PALETTE) {
@@ -375,16 +572,20 @@ function buildPanel(state: EditorState): void {
         paletteEl.appendChild(swatch);
     }
 
-    // Paint / Erase
+    // Paint / Erase / Fill
     const paintBtnId = 'ed-tool-paint';
     const eraseBtnId = 'ed-tool-erase';
+    const fillBtnId  = 'ed-tool-fill';
     allToolBtnIds['paint'] = paintBtnId;
     allToolBtnIds['erase'] = eraseBtnId;
+    allToolBtnIds['fill']  = fillBtnId;
 
     const paintBtn = document.getElementById(paintBtnId) as HTMLButtonElement;
     const eraseBtn = document.getElementById(eraseBtnId) as HTMLButtonElement;
+    const fillBtn  = document.getElementById(fillBtnId)  as HTMLButtonElement;
     paintBtn.onclick = () => { state.selectedTool = 'paint'; refreshAllTools(); };
     eraseBtn.onclick = () => { state.selectedTool = 'erase'; refreshAllTools(); };
+    fillBtn.onclick  = () => { state.selectedTool = 'fill';  refreshAllTools(); };
 
     // Spawn buttons
     const spawnsEl = document.getElementById('ed-spawns')!;
@@ -396,6 +597,18 @@ function buildPanel(state: EditorState): void {
         allToolBtnIds[entry.tool] = btn.id;
         btn.onclick = () => { state.selectedTool = entry.tool; refreshAllTools(); };
         spawnsEl.appendChild(btn);
+    }
+
+    // Scatter target buttons
+    const scatterEl = document.getElementById('ed-scatter')!;
+    for (const entry of SCATTER_BTNS) {
+        const btn = document.createElement('button');
+        btn.id = `ed-tool-${entry.tool}`;
+        btn.style.color = entry.color;
+        btn.textContent = entry.label;
+        allToolBtnIds[entry.tool] = btn.id;
+        btn.onclick = () => { state.selectedTool = entry.tool; refreshAllTools(); };
+        scatterEl.appendChild(btn);
     }
 
     // Special buttons
@@ -419,8 +632,76 @@ function buildPanel(state: EditorState): void {
     undoBtn.onclick = () => { undo(state); syncToRenderer(state); };
     redoBtn.onclick = () => { redo(state); syncToRenderer(state); };
 
+    // Validate
+    const validateBtn    = document.getElementById('ed-validate') as HTMLButtonElement;
+    const validateResult = document.getElementById('ed-validate-result')!;
+    validateBtn.onclick = () => {
+        const result = validateLevel(state.level);
+        let html = '';
+        if (result.valid) {
+            html += `<div class="ed-ok">✔ Valid! ${result.dotCount} dots</div>`;
+        }
+        for (const e of result.errors)   html += `<div class="ed-error">✘ ${e}</div>`;
+        for (const w of result.warnings) html += `<div class="ed-warning">⚠ ${w}</div>`;
+        validateResult.innerHTML = html;
+    };
+
+    // Test Level
+    const testBtn = document.getElementById('ed-test-btn') as HTMLButtonElement;
+    testBtn.onclick = () => {
+        const result = validateLevel(state.level);
+        if (!result.valid) {
+            let msg = 'Level has errors:\n';
+            for (const e of result.errors) msg += `• ${e}\n`;
+            alert(msg);
+            return;
+        }
+        // Persist to autosave so editor state survives the test session
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(state.level));
+        // Remove the editor panel while testing; it will be rebuilt on return
+        panel.remove();
+        startTestGame(deepCopyLevel(state.level), () => {
+            // Rebuild editor UI after returning from test
+            document.body.appendChild(panel);
+            buildPanel(state, panel);
+            syncToRenderer(state);
+            // Restart the rAF loop
+            requestAnimationFrame(() => editorLoop(state));
+        });
+    };
+
+    // Export
+    const exportBtn = document.getElementById('ed-export') as HTMLButtonElement;
+    exportBtn.onclick = () => exportLevelJSON(state.level);
+
+    // Import
+    const importBtn = document.getElementById('ed-import') as HTMLButtonElement;
+    importBtn.onclick = () => {
+        importLevelJSON((imported) => {
+            pushUndo(state);
+            Object.assign(state.level, imported);
+            syncToRenderer(state);
+            nameInput.value = state.level.name;
+            scheduleAutosave(state.level);
+        });
+    };
+
+    // Reset to default level
+    const resetBtn = document.getElementById('ed-reset') as HTMLButtonElement;
+    resetBtn.onclick = () => {
+        if (!confirm('Reset to the default level? Unsaved changes will be lost.')) return;
+        pushUndo(state);
+        const fresh = deepCopyLevel(Levels.level1Data);
+        Object.assign(state.level, fresh);
+        nameInput.value = state.level.name;
+        syncToRenderer(state);
+        localStorage.removeItem(AUTOSAVE_KEY);
+    };
+
     // Initial state
     refreshAllTools();
+
+    return panel;
 }
 
 // ── Canvas Event Handling ─────────────────────────────────────────────────────
@@ -436,12 +717,16 @@ function attachCanvasEvents(state: EditorState): void {
         redZoneDragSeen.clear();
         pushUndo(state);
         applyToolDown(state, cell);
+        scheduleAutosave(state.level);
     }
 
     function onMove(clientX: number, clientY: number): void {
         const cell = tileFromCanvas(clientX, clientY);
         state.hoveredCell = cell;
-        if (isPainting && cell) applyToolDrag(state, cell);
+        if (isPainting && cell) {
+            applyToolDrag(state, cell);
+            scheduleAutosave(state.level);
+        }
     }
 
     function onUp(): void { isPainting = false; }
@@ -492,7 +777,9 @@ function attachKeyboardShortcuts(state: EditorState): void {
 // ── Entry Point ───────────────────────────────────────────────────────────────
 
 export function startEditorMode(): void {
-    const state = createEditorState(Levels.level1Data);
+    const saved = loadAutosave();
+    const initialLevel = saved ?? Levels.level1Data;
+    const state = createEditorState(initialLevel);
 
     // Wire level into the renderer
     gameState.currentLevel = state.level;

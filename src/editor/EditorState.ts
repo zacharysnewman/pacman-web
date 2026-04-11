@@ -11,7 +11,12 @@ export type EditorTool =
     | 'enemy_orange'
     | 'fruit_spawn'
     | 'tunnel_config'
-    | 'red_zone';
+    | 'red_zone'
+    | 'enemy_house_door'
+    | 'scatter_red'
+    | 'scatter_cyan'
+    | 'scatter_hotpink'
+    | 'scatter_orange';
 
 export interface EditorState {
     level: LevelData;
